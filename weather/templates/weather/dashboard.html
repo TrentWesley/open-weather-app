@@ -1,10 +1,62 @@
 {% extends "base.html" %}
+{% load weather_format %}
 
-{% block title %}Weather for {{ lat|floatformat:2 }}, {{ lon|floatformat:2 }} · Open Weather{% endblock %}
+{% block title %}Weather for {{ location|place_name }} · Open Weather{% endblock %}
 
 {% block content %}
-  {# Placeholder until the Phase 4 dashboard (FR-8, FR-9). #}
-  <h1>Weather for {{ lat|floatformat:2 }}, {{ lon|floatformat:2 }}</h1>
-  <p>Current conditions and the forecast for this location will appear here.</p>
-  <p><a href="{% url 'search' %}">Search for another location</a></p>
+  <div class="dashboard-header">
+    <div>
+      <h1>{{ location|place_name }}</h1>
+      <p class="coordinates">Latitude, longitude: {{ lat|floatformat:2 }}, {{ lon|floatformat:2 }}</p>
+    </div>
+
+    {# FR-3 AC-1/5: switching units reloads this same location. #}
+    <form class="unit-toggle" method="post" action="{% url 'toggle_unit' %}" data-loading>
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ request.get_full_path }}">
+      <fieldset>
+        <legend class="visually-hidden">Temperature unit</legend>
+        <button type="submit" name="temperature_unit" value="imperial" aria-pressed="{% if unit == 'imperial' %}true{% else %}false{% endif %}">°F<span class="visually-hidden"> Fahrenheit</span></button>
+        <button type="submit" name="temperature_unit" value="metric" aria-pressed="{% if unit == 'metric' %}true{% else %}false{% endif %}">°C<span class="visually-hidden"> Celsius</span></button>
+      </fieldset>
+    </form>
+  </div>
+
+  {% if error_message %}
+    <div class="notice notice-error" role="alert"><p>{{ error_message }}</p></div>
+  {% else %}
+    {% if weather.is_stale %}
+      <div class="notice" role="status">
+        <p>Showing saved weather from {{ data_age|age }} ago because the weather service couldn't be reached.</p>
+      </div>
+    {% endif %}
+
+    <section class="current" aria-labelledby="current-heading">
+      <h2 id="current-heading">Current conditions</h2>
+      <div class="current-summary">
+        {% with icon=weather.icon|icon_url %}
+          {% if icon %}<img src="{{ icon }}" alt="{{ weather.description }}" width="100" height="100">{% endif %}
+        {% endwith %}
+        <div>
+          <p class="current-temp">{{ weather.temperature|temperature:unit }}</p>
+          <p class="current-description">{{ weather.description|capfirst }}</p>
+          <p>Feels like {{ weather.feels_like|temperature:unit }}</p>
+          <p>High {{ weather.temp_max|temperature:unit }} · Low {{ weather.temp_min|temperature:unit }}</p>
+        </div>
+      </div>
+
+      <dl class="metrics">
+        <div><dt>Humidity</dt><dd>{{ weather.humidity }}%</dd></div>
+        <div><dt>Wind</dt><dd>{{ weather.wind_speed|speed:unit }} {{ weather.wind_compass }}</dd></div>
+        <div><dt>Pressure</dt><dd>{{ weather.pressure }} hPa</dd></div>
+        <div><dt>Visibility</dt><dd>{{ weather.visibility|distance:unit }}</dd></div>
+        <div><dt>Cloud cover</dt><dd>{{ weather.clouds }}%</dd></div>
+        <div><dt>UV index</dt><dd>{% if weather.uv_index is None %}UV index unavailable{% else %}{{ weather.uv_index|floatformat:1 }} ({{ weather.uv_category }}){% endif %}</dd></div>
+        <div><dt>Sunrise</dt><dd>{{ weather.sunrise|local_time }}</dd></div>
+        <div><dt>Sunset</dt><dd>{{ weather.sunset|local_time }}</dd></div>
+      </dl>
+
+      <p class="last-updated">Last updated {{ weather.retrieved_at|in_zone_of:weather.sunrise|local_datetime }} (local time)</p>
+    </section>
+  {% endif %}
 {% endblock %}

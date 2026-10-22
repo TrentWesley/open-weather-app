@@ -14,7 +14,7 @@
     <nav class="site-nav" aria-label="Main">
       <a class="site-brand" href="/">Open Weather</a>
       {% block nav %}{% endblock %}
-      <form class="nav-search" role="search" method="get" action="{% url 'search' %}">
+      <form class="nav-search" role="search" method="get" action="{% url 'search' %}" data-loading>
         <label for="nav-search-q" class="visually-hidden">Search for a city or postal code</label>
         <input id="nav-search-q" type="search" name="q" maxlength="100" placeholder="City or postal code">
         <button type="submit" class="button">Search</button>
@@ -38,6 +38,9 @@
   </header>
 
   <main id="main-content" tabindex="-1">
+    <div id="loading-indicator" class="loading-indicator" hidden>
+      <span class="spinner" aria-hidden="true"></span> Loading weather…
+    </div>
     {% if messages %}
       <ul class="messages" role="status">
         {% for message in messages %}
@@ -55,6 +58,7 @@
   {# Shared region for announcing dynamic updates to assistive technologies (NFR-AC-9). #}
   <div id="live-region" class="visually-hidden" aria-live="polite" aria-atomic="true"></div>
 
+  <script src="{% static 'weather/js/loading.js' %}" defer></script>
   {% block scripts %}{% endblock %}
 </body>
 </html>

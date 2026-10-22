@@ -24,3 +24,9 @@ register.filter("icon_url", formatting.icon_url)
 def in_zone_of(moment: datetime, reference: datetime) -> datetime:
     """Express `moment` in the zone of `reference`, e.g. UTC fetch time in local time."""
     return moment.astimezone(reference.tzinfo)
+
+
+@register.filter
+def place_name(location) -> str:
+    """"Name, State, Country", skipping parts the API didn't provide."""
+    return ", ".join(part for part in (location.name, location.state, location.country) if part)

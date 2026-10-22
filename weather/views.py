@@ -3,8 +3,10 @@ from urllib.parse import urlencode
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
+from django.utils import timezone
 from django.views.decorators.http import require_GET
 
+from accounts.preferences import get_unit
 from weather.forms import CoordinatesForm, SearchForm
 from weather.services.domain import Location
 from weather.services.exceptions import (
@@ -13,6 +15,7 @@ from weather.services.exceptions import (
     RateLimitError,
 )
 from weather.services.search import LocationSearchService
+from weather.services.weather import WeatherService
 
 NO_LOCATIONS = ("No locations found.", "Please check the spelling or try a postal code.")
 NO_POSTAL_CODE = (
@@ -41,7 +44,7 @@ def search(request: HttpRequest) -> HttpResponse:
     try:
         locations = service.search(query)
     except OpenWeatherError as error:
-        context["error_message"] = search_error_message(error)
+        context["error_message"] = service_error_message(error)
         return render(request, "weather/search.html", context, status=503)
 
     if len(locations) == 1:
@@ -56,11 +59,34 @@ def search(request: HttpRequest) -> HttpResponse:
 
 @require_GET
 def dashboard(request: HttpRequest) -> HttpResponse:
-    """Landing page for a chosen location. The full dashboard is built in Phase 4."""
+    """FR-8: current weather for a location, in the user's unit (FR-3)."""
     form = CoordinatesForm(request.GET)
     if not form.is_valid():
         return render(request, "weather/invalid_location.html", status=400)
-    return render(request, "weather/dashboard.html", form.cleaned_data)
+    lat, lon = form.cleaned_data["lat"], form.cleaned_data["lon"]
+    unit = get_unit(request)
+    location = place_for(lat, lon)
+    context = {"location": location, "lat": lat, "lon": lon, "unit": unit}
+    try:
+        weather = WeatherService().current(location, unit)
+    except OpenWeatherError as error:
+        context["error_message"] = service_error_message(error)
+        return render(request, "weather/dashboard.html", context, status=503)
+    context["weather"] = weather
+    context["data_age"] = timezone.now() - weather.retrieved_at
+    return render(request, "weather/dashboard.html", context)
+
+
+def place_for(lat: float, lon: float) -> Location:
+    """Name the location by reverse geocoding, or by its coordinates if that fails.
+
+    The place name is cosmetic, so a geocoding failure must not hide the weather
+    (NFR-FT-3).
+    """
+    try:
+        return LocationSearchService().reverse(lat, lon)
+    except OpenWeatherError:
+        return Location(f"{lat:.2f}, {lon:.2f}", "", "", lat, lon)
 
 
 def dashboard_url(location: Location) -> str:
@@ -69,7 +95,7 @@ def dashboard_url(location: Location) -> str:
     return f"{reverse('dashboard')}?{urlencode(params)}"
 
 
-def search_error_message(error: OpenWeatherError) -> str:
+def service_error_message(error: OpenWeatherError) -> str:
     """NFR-FT-1/4: a friendly message, distinct for rate limiting and key problems."""
     if isinstance(error, RateLimitError):
         return (
@@ -78,7 +104,7 @@ def search_error_message(error: OpenWeatherError) -> str:
         )
     if isinstance(error, AuthenticationError):
         return (
-            "Location search is not configured correctly, so it can't run right now. "
+            "The weather service is not configured correctly, so it can't be used right now. "
             "Please try again later."
         )
     return "We couldn't reach the weather service. Please try again in a moment."

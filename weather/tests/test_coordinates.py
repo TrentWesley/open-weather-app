@@ -1,10 +1,16 @@
 """Tests for coordinate validation and the /weather/ landing page (FR-6 AC-4, NFR-SEC-5).
 
-The page is a placeholder until the Phase 4 dashboard; these tests pin down the
-URL contract (`/weather/?lat=&lon=`) and that bad coordinates never get through.
+These tests pin down the dashboard URL contract (`/weather/?lat=&lon=`) and that
+bad coordinates never get through.
 """
+from unittest import mock
+
+from django.core.cache import cache
+from django.test import override_settings
+
 from weather.forms import CoordinatesForm
-from weather.tests.base import OfflineSimpleTestCase, OfflineTestCase
+from weather.services.client import OpenWeatherClient
+from weather.tests.base import OfflineSimpleTestCase, OfflineTestCase, load_fixture
 
 DASHBOARD_URL = "/weather/"
 
@@ -34,7 +40,22 @@ class CoordinatesFormTests(OfflineSimpleTestCase):
         self.assertFalse(CoordinatesForm({"lat": "35.2"}).is_valid())
 
 
+@override_settings(OPENWEATHER_API_KEY="test-key", OPENWEATHER_ENABLE_ONECALL=False)
 class DashboardLandingTests(OfflineTestCase):
+    def setUp(self):
+        super().setUp()
+        cache.clear()
+        # The page now loads weather (Phase 4), so OpenWeather calls are mocked.
+        for name, fixture in (
+            ("current_weather", "current_weather.json"),
+            ("reverse_geocode", "reverse_geocode.json"),
+        ):
+            patcher = mock.patch.object(
+                OpenWeatherClient, name, return_value=load_fixture(fixture)
+            )
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
     def test_fr6_ac4_valid_coordinates_open_the_location_page(self):
         response = self.client.get(DASHBOARD_URL, {"lat": "39.7990", "lon": "-89.6440"})
         self.assertEqual(response.status_code, 200)
