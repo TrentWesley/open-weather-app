@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+
+{% block title %}Preferences · Open Weather{% endblock %}
+
+{% block content %}
+  <h1>Preferences</h1>
+  <form method="post" action="{% url 'preferences' %}" class="form" novalidate>
+    {% csrf_token %}
+    {% include "includes/form_errors.html" %}
+    {% for field in form %}
+      {% include "includes/field.html" %}
+    {% endfor %}
+    <button type="submit" class="button">Save preferences</button>
+  </form>
+{% endblock %}

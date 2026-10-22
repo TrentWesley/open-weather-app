@@ -2,6 +2,8 @@ from django import forms
 from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
 from django.contrib.auth.models import User
 
+from accounts.models import TemperatureUnit
+
 
 class AccessibleErrorsMixin:
     """NFR-AC-5: mark invalid fields and link them to their error list.
@@ -45,3 +47,13 @@ class LoginForm(AuthenticationForm):
         **AuthenticationForm.error_messages,
         "invalid_login": "Invalid username or password",
     }
+
+
+class UnitPreferenceForm(AccessibleErrorsMixin, forms.Form):
+    """FR-3: choose °F or °C."""
+
+    temperature_unit = forms.ChoiceField(
+        label="Temperature unit",
+        choices=TemperatureUnit.choices,
+        widget=forms.RadioSelect,
+    )

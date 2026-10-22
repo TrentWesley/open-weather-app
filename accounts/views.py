@@ -1,12 +1,15 @@
 from django.contrib import messages
 from django.contrib.auth import login, logout
+from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import LoginView
 from django.core.exceptions import NON_FIELD_ERRORS
-from django.http import HttpRequest, HttpResponse
+from django.http import HttpRequest, HttpResponse, HttpResponseBadRequest
 from django.shortcuts import redirect, render
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_http_methods, require_POST
 
-from accounts.forms import LoginForm, RegistrationForm
+from accounts.forms import LoginForm, RegistrationForm, UnitPreferenceForm
+from accounts.preferences import get_unit, set_unit
 from accounts.ratelimit import LoginRateLimiter
 
 
@@ -63,4 +66,33 @@ def logout_view(request: HttpRequest) -> HttpResponse:
     """FR-2 AC-5: POST-only logout that ends the session and confirms it."""
     logout(request)
     messages.success(request, "You have been logged out.")
+    return redirect("home")
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def preferences(request: HttpRequest) -> HttpResponse:
+    """FR-3 AC-1/2: the logged-in user's preferences page."""
+    form = UnitPreferenceForm(
+        request.POST or None, initial={"temperature_unit": get_unit(request)}
+    )
+    if request.method == "POST" and form.is_valid():
+        unit = set_unit(request, form.cleaned_data["temperature_unit"])
+        messages.success(request, f"Temperature unit set to {unit.label}.")
+        return redirect("preferences")
+    return render(request, "accounts/preferences.html", {"form": form})
+
+
+@require_POST
+def toggle_unit(request: HttpRequest) -> HttpResponse:
+    """FR-3 AC-1/3/5: switch units for anyone, then return to the same page."""
+    form = UnitPreferenceForm(request.POST)
+    if not form.is_valid():
+        return HttpResponseBadRequest("Unknown temperature unit.")
+    set_unit(request, form.cleaned_data["temperature_unit"])
+    next_url = request.POST.get("next", "")
+    if url_has_allowed_host_and_scheme(
+        next_url, allowed_hosts={request.get_host()}, require_https=request.is_secure()
+    ):
+        return redirect(next_url)
     return redirect("home")

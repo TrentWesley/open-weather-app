@@ -17,6 +17,7 @@
       <ul class="nav-account">
         {% if user.is_authenticated %}
           <li>Signed in as <strong>{{ user.username }}</strong></li>
+          <li><a href="{% url 'preferences' %}">Preferences</a></li>
           <li>
             <form method="post" action="{% url 'logout' %}">
               {% csrf_token %}
