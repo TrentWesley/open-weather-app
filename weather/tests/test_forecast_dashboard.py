@@ -83,7 +83,28 @@ class ChartTests(ForecastTestCase):
                 self.assertIn('role="img"', canvas.group())
                 self.assertIn("aria-label=", canvas.group())
                 self.assertIn('tabindex="0"', canvas.group())
-                self.assertIn("hidden", canvas.group())
+
+    def test_charts_stay_hidden_until_drawn(self):
+        # The whole figure is hidden (not just the canvas) so no-JS visitors
+        # don't see an empty fixed-height box.
+        self.assertContains(self.get(), '<figure class="chart" hidden>', count=2)
+
+    def test_each_canvas_has_its_own_height_constrained_container(self):
+        """Regression: charts grew without limit.
+
+        With maintainAspectRatio: false, Chart.js sizes the canvas to its parent and
+        resizes when the parent changes. When the parent was the <figure>, whose
+        height came from the canvas, every resize grew the figure and triggered
+        another resize. Each canvas must be the only child of a container whose
+        height doesn't depend on it.
+        """
+        body = self.get().content.decode()
+        for chart_id in ("temperature-chart", "precipitation-chart"):
+            with self.subTest(chart=chart_id):
+                self.assertRegex(
+                    body,
+                    rf'<div class="chart-container">\s*<canvas id="{chart_id}"[^>]*></canvas>\s*</div>',
+                )
 
     def test_nfr_ac7_charts_have_a_text_summary(self):
         self.assertContains(
@@ -166,6 +187,29 @@ class ForecastFailureTests(ForecastTestCase):
         self.get()
         self.get()
         self.assertEqual(self.forecast.call_count, 1)
+
+
+class ChartStylesheetTests(DashboardTestCase):
+    """The CSS half of the resize-loop regression fix."""
+
+    def setUp(self):
+        super().setUp()
+        with open(finders.find("css/site.css"), encoding="utf-8") as handle:
+            self.css = handle.read()
+
+    def rule(self, selector):
+        match = re.search(rf"(?m)^{re.escape(selector)} \{{([^}}]*)\}}", self.css)
+        self.assertIsNotNone(match, f"no CSS rule for {selector}")
+        return match.group(1)
+
+    def test_chart_container_is_relative_with_a_fixed_height(self):
+        rule = self.rule(".chart-container")
+        self.assertIn("position: relative;", rule)
+        self.assertRegex(rule, r"(?<![\w-])height: \d+(\.\d+)?rem;")
+
+    def test_no_css_sizes_the_canvas_itself(self):
+        # Chart.js owns the canvas size; a CSS height on it fights the container.
+        self.assertNotRegex(self.css, r"canvas[^{,]*\{[^}]*(?<![\w-])height:")
 
 
 class VendoredChartJsTests(DashboardTestCase):

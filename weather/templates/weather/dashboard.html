@@ -91,15 +91,20 @@
       <p id="chart-summary">{{ chart_data.summary }}</p>
       <p class="chart-fallback" data-chart-fallback>Interactive charts need JavaScript. The same data is in the table below.</p>
 
-      <figure class="chart">
-        <canvas id="temperature-chart" role="img" tabindex="0" hidden
-                aria-label="Line chart of temperature in {{ chart_data.temperature_unit }} every 3 hours. {{ chart_data.summary }} Use the left and right arrow keys to read each value."></canvas>
+      {# Each canvas is the only child of a fixed-height container; Chart.js sizes it to that box. #}
+      <figure class="chart" hidden>
+        <div class="chart-container">
+          <canvas id="temperature-chart" role="img" tabindex="0"
+                  aria-label="Line chart of temperature in {{ chart_data.temperature_unit }} every 3 hours. {{ chart_data.summary }} Use the left and right arrow keys to read each value."></canvas>
+        </div>
         <figcaption>Temperature ({{ chart_data.temperature_unit }}), local time</figcaption>
       </figure>
 
-      <figure class="chart">
-        <canvas id="precipitation-chart" role="img" tabindex="0" hidden
-                aria-label="Bar chart of the chance of precipitation in percent, with precipitation amount in {{ chart_data.precipitation_unit }}, every 3 hours. Use the left and right arrow keys to read each value."></canvas>
+      <figure class="chart" hidden>
+        <div class="chart-container">
+          <canvas id="precipitation-chart" role="img" tabindex="0"
+                  aria-label="Bar chart of the chance of precipitation in percent, with precipitation amount in {{ chart_data.precipitation_unit }}, every 3 hours. Use the left and right arrow keys to read each value."></canvas>
+        </div>
         <figcaption>Chance of precipitation (%) and amount ({{ chart_data.precipitation_unit }}), local time</figcaption>
       </figure>
 

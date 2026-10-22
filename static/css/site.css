@@ -374,13 +374,23 @@ main:focus {
   margin: 0 0 var(--space);
 }
 
-.chart canvas {
+.chart[hidden] {
+  display: none;
+}
+
+/* Chart.js (maintainAspectRatio: false) sizes the canvas to fill this box and
+   redraws when the box resizes. The box's height must not depend on the canvas,
+   or each redraw grows it and triggers another (an endless resize loop). */
+.chart-container {
+  position: relative;
   width: 100%;
   height: 16rem;
 }
 
-.chart canvas:not([hidden]) {
-  display: block;
+@media (min-width: 48rem) {
+  .chart-container {
+    height: 20rem;
+  }
 }
 
 .chart figcaption {

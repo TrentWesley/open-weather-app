@@ -178,7 +178,8 @@ function drawCharts() {
   ]) {
     const canvas = document.getElementById(id);
     if (canvas) {
-      canvas.hidden = false;
+      // Reveal the figure before drawing so Chart.js measures the real container size.
+      canvas.closest("figure").hidden = false;
       const chart = new Chart(canvas, build(data, colors, animate));
       enableKeyboardTooltips(canvas, chart, data);
     }
