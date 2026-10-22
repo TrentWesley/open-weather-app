@@ -171,6 +171,36 @@ main:focus {
   border-radius: 0.375rem;
 }
 
+/* Device geolocation (FR-7) */
+
+.geolocate {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.button-secondary {
+  color: var(--color-link);
+  background: var(--color-bg);
+  border: 2px solid var(--color-link);
+}
+
+.button-secondary:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
+
+.geolocate-status {
+  max-width: 28rem;
+  margin: 0;
+  font-size: 0.875rem;
+}
+
+.geolocate-status:empty {
+  display: none;
+}
+
 .search-form {
   max-width: 28rem;
   margin-bottom: var(--space);

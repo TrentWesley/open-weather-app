@@ -31,7 +31,7 @@ stateDiagram-v2
     AwaitingSelection --> LoadingWeather : user selects location
     NoResults --> Validating : submit new query
 
-    RequestingPermission --> LocationUnavailable : denied / timeout (10 s) / unsupported
+    RequestingPermission --> LocationUnavailable : denied / timeout (10 s) / unsupported / invalid coordinates
     RequestingPermission --> ReverseGeocoding : coordinates received
     ReverseGeocoding --> LoadingWeather : place name resolved
     ReverseGeocoding --> SearchError : API error

@@ -18,6 +18,7 @@ from weather.services.search import LocationSearchService
 from weather.services.weather import WeatherService
 
 FORECAST_UNAVAILABLE = "The forecast isn't available right now. "
+LOCATION_LOOKUP_FAILED = "We couldn't look up your location. "
 NO_LOCATIONS = ("No locations found.", "Please check the spelling or try a postal code.")
 NO_POSTAL_CODE = (
     "Postal code not found.",
@@ -93,6 +94,29 @@ def dashboard(request: HttpRequest) -> HttpResponse:
 
     status = 503 if "current_error" in context and "forecast_error" in context else 200
     return render(request, "weather/dashboard.html", context, status=status)
+
+
+@require_GET
+def reverse_geocode(request: HttpRequest) -> HttpResponse:
+    """FR-7 AC-3: device coordinates -> place name -> the existing dashboard.
+
+    The browser sends only coordinates to this endpoint; reverse geocoding (and
+    the API key) stay on the server.
+    """
+    form = CoordinatesForm(request.GET)
+    if not form.is_valid():
+        return render(request, "weather/invalid_location.html", status=400)
+    try:
+        location = LocationSearchService().reverse(
+            form.cleaned_data["lat"], form.cleaned_data["lon"]
+        )
+    except OpenWeatherError as error:
+        context = {
+            "form": SearchForm(),
+            "error_message": LOCATION_LOOKUP_FAILED + service_error_message(error),
+        }
+        return render(request, "weather/search.html", context, status=503)
+    return redirect(dashboard_url(location))
 
 
 def place_for(lat: float, lon: float) -> Location:
