@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from itertools import groupby
 
+from weather import formatting
+
 COMPASS_POINTS = (
     "N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
     "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW",
@@ -121,6 +123,35 @@ class Forecast:
                 )
             )
         return summaries[:MAX_FORECAST_DAYS]
+
+    def chart_data(self, unit: str) -> dict:
+        """JSON-ready series for the temperature and precipitation charts (FR-9 AC-3..6).
+
+        Labels are local times; temperatures are already in `unit` (OpenWeather
+        was asked for it); precipitation is converted to mm or inches to match.
+        Embed with `json_script`, never by string concatenation.
+        """
+        labels = [formatting.format_hour(e.timestamp) for e in self.entries]
+        temperatures = [e.temperature for e in self.entries]
+        wettest = max(range(len(self.entries)), key=lambda i: self.entries[i].pop)
+        summary = (
+            f"Temperatures range from {formatting.format_temperature(min(temperatures), unit)} "
+            f"to {formatting.format_temperature(max(temperatures), unit)} "
+            f"between {labels[0]} and {labels[-1]}. "
+            f"Highest chance of precipitation: "
+            f"{formatting.format_percent(self.entries[wettest].pop)} at {labels[wettest]}."
+        )
+        return {
+            "labels": labels,
+            "temperature": [formatting.round_half_up(t, 1) for t in temperatures],
+            "pop": [int(formatting.round_half_up(e.pop * 100)) for e in self.entries],
+            "precipitation": [
+                formatting.precipitation_in_unit(e.precipitation_mm, unit) for e in self.entries
+            ],
+            "temperature_unit": formatting.temperature_symbol(unit),
+            "precipitation_unit": formatting.precipitation_unit(unit),
+            "summary": summary,
+        }
 
 
 def _minutes_from_midday(entry: ForecastEntry) -> int:

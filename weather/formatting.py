@@ -4,43 +4,75 @@ OpenWeather already returns temperatures and wind speed in the requested unit
 (°F and mph for imperial, °C and m/s for metric); visibility is always metres.
 Times are formatted in the zone they carry, which is the location's local time.
 """
-import math
 import re
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
+from decimal import ROUND_HALF_UP, Decimal
 
 from accounts.models import TemperatureUnit
 
 METRES_PER_MILE = 1609.344
+MM_PER_INCH = 25.4
 ICON_BASE_URL = "https://openweathermap.org/img/wn/"
 _ICON_CODE = re.compile(r"\d{2}[dn]")
 
 
-def _round_half_up(value: float) -> int:
-    return math.floor(value + 0.5)
+def round_half_up(value: float, places: int = 0) -> float:
+    """Round like people expect (1.25 -> 1.3), not banker's rounding (1.25 -> 1.2)."""
+    step = Decimal(1).scaleb(-places)
+    return float(Decimal(str(value)).quantize(step, rounding=ROUND_HALF_UP))
 
 
-def _one_decimal(value: float) -> str:
-    """One decimal place, dropping a trailing ".0" (10.0 -> "10")."""
-    text = f"{value:.1f}"
-    return text[:-2] if text.endswith(".0") else text
+def _whole(value: float) -> int:
+    return int(round_half_up(value))
+
+
+def _trimmed(value: float, places: int) -> str:
+    """Fixed decimals without trailing zeros: 0.10 -> "0.1", 3.00 -> "3"."""
+    text = f"{round_half_up(value, places):.{places}f}"
+    return text.rstrip("0").rstrip(".") if "." in text else text
+
+
+def precipitation_in_unit(mm: float, unit: TemperatureUnit | str) -> float:
+    """Millimetres for metric, inches (2 decimals) for imperial."""
+    if TemperatureUnit(unit) == TemperatureUnit.IMPERIAL:
+        return round_half_up(mm / MM_PER_INCH, 2)
+    return round_half_up(mm, 2)
+
+
+def precipitation_unit(unit: TemperatureUnit | str) -> str:
+    return "in" if TemperatureUnit(unit) == TemperatureUnit.IMPERIAL else "mm"
+
+
+def temperature_symbol(unit: TemperatureUnit | str) -> str:
+    return "°F" if TemperatureUnit(unit) == TemperatureUnit.IMPERIAL else "°C"
 
 
 def format_temperature(value: float, unit: TemperatureUnit | str) -> str:
-    symbol = "°F" if TemperatureUnit(unit) == TemperatureUnit.IMPERIAL else "°C"
-    return f"{_round_half_up(value)}{symbol}"
+    return f"{_whole(value)}{temperature_symbol(unit)}"
 
 
 def format_speed(value: float, unit: TemperatureUnit | str) -> str:
     """FR-3 AC-6: mph for imperial, m/s for metric."""
     if TemperatureUnit(unit) == TemperatureUnit.IMPERIAL:
-        return f"{_round_half_up(value)} mph"
+        return f"{_whole(value)} mph"
     return f"{value:.1f} m/s"
 
 
 def format_distance(metres: float, unit: TemperatureUnit | str) -> str:
     if TemperatureUnit(unit) == TemperatureUnit.IMPERIAL:
-        return f"{_one_decimal(metres / METRES_PER_MILE)} mi"
-    return f"{_one_decimal(metres / 1000)} km"
+        return f"{_trimmed(metres / METRES_PER_MILE, 1)} mi"
+    return f"{_trimmed(metres / 1000, 1)} km"
+
+
+def format_precipitation(mm: float, unit: TemperatureUnit | str) -> str:
+    """e.g. "1.3 mm" or "0.05 in"."""
+    places = 2 if TemperatureUnit(unit) == TemperatureUnit.IMPERIAL else 1
+    return f"{_trimmed(precipitation_in_unit(mm, unit), places)} {precipitation_unit(unit)}"
+
+
+def format_percent(fraction: float) -> str:
+    """A 0-1 probability as a whole percentage, e.g. 0.35 -> "35%"."""
+    return f"{_whole(fraction * 100)}%"
 
 
 def format_time(moment: datetime) -> str:
@@ -51,6 +83,17 @@ def format_time(moment: datetime) -> str:
 def format_datetime(moment: datetime) -> str:
     """NFR-USE-6: e.g. "Tue, Oct 20 · 6:42 PM"."""
     return f"{moment:%a, %b} {moment.day} · {format_time(moment)}"
+
+
+def format_hour(moment: datetime) -> str:
+    """Forecast step label, e.g. "Thu 10 AM"."""
+    hour = moment.strftime("%I").lstrip("0")
+    return f"{moment:%a} {hour} {moment:%p}"
+
+
+def format_date(day: date) -> str:
+    """Daily summary label, e.g. "Thu, Oct 22"."""
+    return f"{day:%a, %b} {day.day}"
 
 
 def format_age(age: timedelta) -> str:

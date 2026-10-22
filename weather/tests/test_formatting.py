@@ -1,5 +1,5 @@
 """Tests for dashboard value formatting (FR-3 AC-6, FR-8 AC-1/2/3, NFR-USE-6, NFR-CACHE-4)."""
-from datetime import UTC, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta, timezone
 
 from django.template import Context, Template
 
@@ -100,3 +100,22 @@ class TemplateFilterTests(OfflineSimpleTestCase):
         self.assertEqual(
             self.render("{{ c|icon_url }}", c="10d"), "https://openweathermap.org/img/wn/10d@2x.png"
         )
+
+
+class ForecastFormattingTests(OfflineSimpleTestCase):
+    def test_fr9_hour_labels_in_local_time(self):
+        self.assertEqual(formatting.format_hour(datetime(2026, 10, 22, 10, 0, tzinfo=LOCAL)), "Thu 10 AM")
+        self.assertEqual(formatting.format_hour(datetime(2026, 10, 23, 0, 0, tzinfo=LOCAL)), "Fri 12 AM")
+
+    def test_fr9_ac2_day_labels(self):
+        self.assertEqual(formatting.format_date(date(2026, 10, 22)), "Thu, Oct 22")
+
+    def test_precipitation_amounts_with_units(self):
+        self.assertEqual(formatting.format_precipitation(3.0, METRIC), "3 mm")
+        self.assertEqual(formatting.format_precipitation(1.25, METRIC), "1.3 mm")
+        self.assertEqual(formatting.format_precipitation(3.0, IMPERIAL), "0.12 in")
+        self.assertEqual(formatting.format_precipitation(0, IMPERIAL), "0 in")
+
+    def test_percent(self):
+        self.assertEqual(formatting.format_percent(0.35), "35%")
+        self.assertEqual(formatting.format_percent(0.805), "81%")
