@@ -1,6 +1,14 @@
 """Plain value objects returned by the weather services (see docs/diagrams/class.mmd)."""
+import math
 from dataclasses import dataclass
 from datetime import datetime
+
+COMPASS_POINTS = (
+    "N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
+    "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW",
+)
+# WHO UV index bands: highest whole-number index in each category.
+UV_CATEGORIES = ((2, "Low"), (5, "Moderate"), (7, "High"), (10, "Very High"))
 
 
 @dataclass(frozen=True)
@@ -40,6 +48,20 @@ class CurrentWeather:
     sunset: datetime
     retrieved_at: datetime
     is_stale: bool = False
+
+    def wind_compass(self) -> str:
+        """Wind direction as a 16-point compass label, e.g. 315 degrees -> "NW"."""
+        return COMPASS_POINTS[round(self.wind_deg / 22.5) % 16]
+
+    def uv_category(self) -> str | None:
+        """WHO risk category for the UV index, or None when it is unavailable."""
+        if self.uv_index is None:
+            return None
+        index = math.floor(self.uv_index + 0.5)  # Half up: 2.5 counts as 3.
+        for highest, category in UV_CATEGORIES:
+            if index <= highest:
+                return category
+        return "Extreme"
 
 
 @dataclass(frozen=True)
