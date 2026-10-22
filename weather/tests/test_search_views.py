@@ -115,7 +115,17 @@ class SingleMatchTests(SearchViewTestCase):
     def test_fr4_ac4_query_is_trimmed(self):
         self.direct.return_value = load_fixture("geocode_direct_single.json")
         self.search("   Paris, FR  ")
-        self.direct.assert_called_once_with("Paris, FR", limit=5)
+        self.direct.assert_called_once_with("Paris,FR", limit=5)
+
+    def test_fr4_ac2_city_and_state_code_redirects_to_its_dashboard(self):
+        """Regression: "Amarillo, TX" showed "No locations found"."""
+        self.direct.return_value = [
+            {"name": "Amarillo", "lat": 35.2219971, "lon": -101.8312969,
+             "country": "US", "state": "Texas"}
+        ]
+        response = self.search("Amarillo, TX")
+        self.direct.assert_called_once_with("Amarillo,TX,US", limit=5)
+        self.assertRedirectsToDashboard(response, "35.2220", "-101.8313")
 
 
 class NoResultsTests(SearchViewTestCase):

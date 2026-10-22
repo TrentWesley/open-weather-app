@@ -21,6 +21,16 @@ DEFAULT_COUNTRY = "US"
 # OpenWeather answers an unknown or badly formed postal code with 404 or 400.
 POSTAL_NOT_FOUND_STATUSES = {400, 404}
 
+# USPS codes for the 50 states and DC; OpenWeather accepts these with country US.
+US_STATE_CODES = frozenset(
+    "AL AK AZ AR CA CO CT DE FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO MT NE "
+    "NV NH NJ NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY DC".split()
+)
+# State codes that are also ISO 3166-1 country codes (CA = Canada, DE = Germany, ...).
+STATE_CODES_THAT_ARE_COUNTRIES = frozenset(
+    "AL AR AZ CA CO DE GA ID IL IN KY LA MA MD ME MN MO MS MT NC NE PA SC SD TN VA".split()
+)
+
 _COUNTRY_CODE = re.compile(r"[A-Za-z]{2}")
 _POSTAL_CHARS = re.compile(r"[A-Za-z0-9 -]{2,10}")
 _US_ZIP_PLUS_FOUR = re.compile(r"(\d{5})-\d{4}")
@@ -78,11 +88,17 @@ class LocationSearchService:
         return _split_postal_code(query.strip()) is not None
 
     def _search_city(self, query: str) -> list[Location]:
-        key = _geocode_key("direct", query, "")
+        api_queries = _direct_queries(query)
+        key = _geocode_key("direct", "|".join(api_queries), "")
         locations = self._cache.get(key)
         if locations is None:
-            matches = self._client.geocode_direct(query, limit=MAX_RESULTS)
-            locations = [_parse_location(m, GEOCODE_DIRECT) for m in matches[:MAX_RESULTS]]
+            locations = []
+            for api_query in api_queries:
+                for match in self._client.geocode_direct(api_query, limit=MAX_RESULTS):
+                    location = _parse_location(match, GEOCODE_DIRECT)
+                    if location not in locations:
+                        locations.append(location)
+            locations = locations[:MAX_RESULTS]
             self._cache.set(key, locations, self._cache.GEOCODE_TTL)
         return locations
 
@@ -99,6 +115,26 @@ class LocationSearchService:
             locations = [_parse_location(match, GEOCODE_ZIP)]
             self._cache.set(key, locations, self._cache.GEOCODE_TTL)
         return locations
+
+
+def _direct_queries(query: str) -> list[str]:
+    """Return the `q` value(s) to send to direct geocoding for a city query.
+
+    OpenWeather expects "city", "city,country" or "city,state,US"; a state code is
+    only honoured together with country US. So "Amarillo, TX" becomes
+    "Amarillo,TX,US". A code that is both a state and a country ("London, CA")
+    is searched both ways, the US reading first. Spacing around commas is
+    dropped and two-letter codes are upper-cased.
+    """
+    parts = [part.strip() for part in query.split(",") if part.strip()]
+    parts = [parts[0]] + [p.upper() if _COUNTRY_CODE.fullmatch(p) else p for p in parts[1:]]
+    if len(parts) == 2 and parts[1] in US_STATE_CODES:
+        city, code = parts
+        state_query = f"{city},{code},US"
+        if code in STATE_CODES_THAT_ARE_COUNTRIES:
+            return [state_query, f"{city},{code}"]
+        return [state_query]
+    return [",".join(parts)]
 
 
 def _split_postal_code(query: str) -> tuple[str, str] | None:

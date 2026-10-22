@@ -61,13 +61,105 @@ class CitySearchTests(SearchTestCase):
         self.client_.geocode_zip.assert_not_called()
 
     def test_fr4_ac2_city_state_and_city_country_forms_use_direct_geocoding(self):
-        for query in ("Amarillo, TX", "Paris, FR", "Route 66", "St. John's"):
+        cases = {
+            "Amarillo, TX": "Amarillo,TX,US",
+            "Paris, FR": "Paris,FR",
+            "Route 66": "Route 66",
+            "St. John's": "St. John's",
+        }
+        for query, api_query in cases.items():
             with self.subTest(query=query):
                 self.client_.reset_mock()
                 cache.clear()
                 self.service.search(query)
-                self.client_.geocode_direct.assert_called_once_with(query, limit=5)
+                self.client_.geocode_direct.assert_called_once_with(api_query, limit=5)
                 self.client_.geocode_zip.assert_not_called()
+
+
+class CityStateSearchTests(SearchTestCase):
+    """FR-4 AC-2 regression: OpenWeather needs "city,state,US"; "Amarillo, TX" found nothing.
+
+    The API treats the second part of "Amarillo,TX" as a country code, and state
+    codes are only honoured with country US.
+    """
+
+    AMARILLO = [
+        {"name": "Amarillo", "lat": 35.2219971, "lon": -101.8312969, "country": "US", "state": "Texas"}
+    ]
+
+    def api_queries(self):
+        return [c.args[0] for c in self.client_.geocode_direct.call_args_list]
+
+    def test_fr4_ac2_us_state_code_is_sent_with_country_us(self):
+        self.client_.geocode_direct.return_value = self.AMARILLO
+        results = self.service.search("Amarillo, TX")
+        self.client_.geocode_direct.assert_called_once_with("Amarillo,TX,US", limit=5)
+        self.assertEqual(results[0].state, "Texas")
+
+    def test_state_code_is_case_insensitive_and_spacing_is_ignored(self):
+        for query in ("amarillo, tx", "Amarillo ,TX", "  Amarillo,   Tx  "):
+            with self.subTest(query=query):
+                self.client_.reset_mock()
+                cache.clear()
+                self.service.search(query)
+                self.assertEqual(self.api_queries(), [f"{query.split(',')[0].strip()},TX,US"])
+
+    def test_city_state_and_country_is_passed_through_normalized(self):
+        self.service.search("Springfield , IL , us")
+        self.client_.geocode_direct.assert_called_once_with("Springfield,IL,US", limit=5)
+
+    def test_international_city_country_is_unchanged(self):
+        for query, api_query in (("Paris, FR", "Paris,FR"), ("London, GB", "London,GB"),
+                                 ("Tokyo, jp", "Tokyo,JP")):
+            with self.subTest(query=query):
+                self.client_.reset_mock()
+                cache.clear()
+                self.service.search(query)
+                self.assertEqual(self.api_queries(), [api_query])
+
+    def test_explicit_country_us_is_not_treated_as_a_state(self):
+        self.service.search("Amarillo, US")
+        self.client_.geocode_direct.assert_called_once_with("Amarillo,US", limit=5)
+
+    def test_non_code_region_text_is_passed_through(self):
+        self.service.search("Amarillo, Texas")
+        self.client_.geocode_direct.assert_called_once_with("Amarillo,Texas", limit=5)
+
+    def test_code_that_is_both_a_state_and_a_country_queries_both(self):
+        """"London, CA" may mean California or Canada, so both are searched."""
+        california = {"name": "London", "lat": 36.48, "lon": -119.44, "country": "US", "state": "California"}
+        ontario = {"name": "London", "lat": 42.98, "lon": -81.25, "country": "CA", "state": "Ontario"}
+        self.client_.geocode_direct.side_effect = [[california], [ontario]]
+        results = self.service.search("London, CA")
+        self.assertEqual(self.api_queries(), ["London,CA,US", "London,CA"])
+        self.assertEqual([r.country for r in results], ["US", "CA"])
+
+    def test_ambiguous_code_with_one_empty_reading_gives_a_single_match(self):
+        self.client_.geocode_direct.side_effect = [load_fixture("geocode_direct_multiple.json")[:1], []]
+        self.assertEqual(len(self.service.search("Springfield, IL")), 1)
+
+    def test_merged_results_drop_duplicates_and_keep_at_most_five(self):
+        five = load_fixture("geocode_direct_multiple.json")
+        self.client_.geocode_direct.side_effect = [five, five[:2]]
+        results = self.service.search("Springfield, IL")
+        self.assertEqual(len(results), 5)
+        self.assertEqual(len(set(results)), 5)
+
+    def test_city_state_results_are_cached(self):
+        self.client_.geocode_direct.return_value = self.AMARILLO
+        self.service.search("Amarillo, TX")
+        self.service.search("amarillo,tx")
+        self.service.search("Amarillo, TX, US")
+        self.client_.geocode_direct.assert_called_once()
+
+    def test_city_only_search_is_unchanged(self):
+        self.service.search("Amarillo")
+        self.client_.geocode_direct.assert_called_once_with("Amarillo", limit=5)
+
+    def test_postal_code_with_country_still_uses_zip_geocoding(self):
+        self.service.search("79015, US")
+        self.client_.geocode_zip.assert_called_once_with("79015", "US")
+        self.client_.geocode_direct.assert_not_called()
 
     def test_fr6_ac2_results_are_locations_with_name_state_country_and_coordinates(self):
         first = self.service.search("Springfield")[0]
