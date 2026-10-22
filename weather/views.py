@@ -17,6 +17,7 @@ from weather.services.exceptions import (
 from weather.services.search import LocationSearchService
 from weather.services.weather import WeatherService
 
+FORECAST_UNAVAILABLE = "The forecast isn't available right now. "
 NO_LOCATIONS = ("No locations found.", "Please check the spelling or try a postal code.")
 NO_POSTAL_CODE = (
     "Postal code not found.",
@@ -59,22 +60,39 @@ def search(request: HttpRequest) -> HttpResponse:
 
 @require_GET
 def dashboard(request: HttpRequest) -> HttpResponse:
-    """FR-8: current weather for a location, in the user's unit (FR-3)."""
+    """FR-8/FR-9: current weather and forecast for a location in the user's unit (FR-3).
+
+    Each section loads on its own, so one failing doesn't hide the other
+    (NFR-FT-3). The page is a 503 only when neither can be shown.
+    """
     form = CoordinatesForm(request.GET)
     if not form.is_valid():
         return render(request, "weather/invalid_location.html", status=400)
     lat, lon = form.cleaned_data["lat"], form.cleaned_data["lon"]
     unit = get_unit(request)
     location = place_for(lat, lon)
+    service = WeatherService()
     context = {"location": location, "lat": lat, "lon": lon, "unit": unit}
+
     try:
-        weather = WeatherService().current(location, unit)
+        weather = service.current(location, unit)
+        context.update(weather=weather, data_age=timezone.now() - weather.retrieved_at)
     except OpenWeatherError as error:
-        context["error_message"] = service_error_message(error)
-        return render(request, "weather/dashboard.html", context, status=503)
-    context["weather"] = weather
-    context["data_age"] = timezone.now() - weather.retrieved_at
-    return render(request, "weather/dashboard.html", context)
+        context["current_error"] = service_error_message(error)
+
+    try:
+        forecast = service.forecast(location, unit)
+        context.update(
+            forecast=forecast,
+            forecast_age=timezone.now() - forecast.retrieved_at,
+            daily=forecast.daily_summaries(),
+            chart_data=forecast.chart_data(unit),
+        )
+    except OpenWeatherError as error:
+        context["forecast_error"] = FORECAST_UNAVAILABLE + service_error_message(error)
+
+    status = 503 if "current_error" in context and "forecast_error" in context else 200
+    return render(request, "weather/dashboard.html", context, status=status)
 
 
 def place_for(lat: float, lon: float) -> Location:

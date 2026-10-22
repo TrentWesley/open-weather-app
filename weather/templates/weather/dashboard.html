@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load weather_format %}
+{% load static weather_format %}
 
 {% block title %}Weather for {{ location|place_name }} · Open Weather{% endblock %}
 
@@ -10,7 +10,7 @@
       <p class="coordinates">Latitude, longitude: {{ lat|floatformat:2 }}, {{ lon|floatformat:2 }}</p>
     </div>
 
-    {# FR-3 AC-1/5: switching units reloads this same location. #}
+    {# FR-3 AC-1/5: switching units reloads this same location, redrawing values and charts. #}
     <form class="unit-toggle" method="post" action="{% url 'toggle_unit' %}" data-loading>
       {% csrf_token %}
       <input type="hidden" name="next" value="{{ request.get_full_path }}">
@@ -22,17 +22,17 @@
     </form>
   </div>
 
-  {% if error_message %}
-    <div class="notice notice-error" role="alert"><p>{{ error_message }}</p></div>
-  {% else %}
-    {% if weather.is_stale %}
-      <div class="notice" role="status">
-        <p>Showing saved weather from {{ data_age|age }} ago because the weather service couldn't be reached.</p>
-      </div>
-    {% endif %}
+  <section class="current" aria-labelledby="current-heading">
+    <h2 id="current-heading">Current conditions</h2>
+    {% if current_error %}
+      <div class="notice notice-error" role="alert"><p>{{ current_error }}</p></div>
+    {% else %}
+      {% if weather.is_stale %}
+        <div class="notice" role="status">
+          <p>Showing saved weather from {{ data_age|age }} ago because the weather service couldn't be reached.</p>
+        </div>
+      {% endif %}
 
-    <section class="current" aria-labelledby="current-heading">
-      <h2 id="current-heading">Current conditions</h2>
       <div class="current-summary">
         {% with icon=weather.icon|icon_url %}
           {% if icon %}<img src="{{ icon }}" alt="{{ weather.description }}" width="100" height="100">{% endif %}
@@ -57,6 +57,89 @@
       </dl>
 
       <p class="last-updated">Last updated {{ weather.retrieved_at|in_zone_of:weather.sunrise|local_datetime }} (local time)</p>
-    </section>
+    {% endif %}
+  </section>
+
+  <section class="forecast" aria-labelledby="forecast-heading">
+    <h2 id="forecast-heading">5-day forecast</h2>
+    {% if forecast_error %}
+      <div class="notice notice-error" role="alert"><p>{{ forecast_error }}</p></div>
+    {% else %}
+      {% if forecast.is_stale %}
+        <div class="notice" role="status">
+          <p>Showing a saved forecast from {{ forecast_age|age }} ago because the weather service couldn't be reached.</p>
+        </div>
+      {% endif %}
+
+      {# FR-9 AC-2: one entry per local calendar day. #}
+      <ol class="daily-forecast">
+        {% for day in daily %}
+          <li>
+            <h3>{{ day.date|day_label }}</h3>
+            {% with icon=day.icon|icon_url %}
+              {% if icon %}<img src="{{ icon }}" alt="{{ day.description }}" width="50" height="50">{% endif %}
+            {% endwith %}
+            <p>High {{ day.high|temperature:unit }}</p>
+            <p>Low {{ day.low|temperature:unit }}</p>
+            <p>{{ day.max_pop|percent }} chance of precipitation</p>
+          </li>
+        {% endfor %}
+      </ol>
+
+      {# FR-9 AC-3..7, NFR-AC-7: charts with a text summary and an equivalent table. #}
+      <h3 id="trends-heading">Temperature and precipitation trends</h3>
+      <p id="chart-summary">{{ chart_data.summary }}</p>
+      <p class="chart-fallback" data-chart-fallback>Interactive charts need JavaScript. The same data is in the table below.</p>
+
+      <figure class="chart">
+        <canvas id="temperature-chart" role="img" tabindex="0" hidden
+                aria-label="Line chart of temperature in {{ chart_data.temperature_unit }} every 3 hours. {{ chart_data.summary }} Use the left and right arrow keys to read each value."></canvas>
+        <figcaption>Temperature ({{ chart_data.temperature_unit }}), local time</figcaption>
+      </figure>
+
+      <figure class="chart">
+        <canvas id="precipitation-chart" role="img" tabindex="0" hidden
+                aria-label="Bar chart of the chance of precipitation in percent, with precipitation amount in {{ chart_data.precipitation_unit }}, every 3 hours. Use the left and right arrow keys to read each value."></canvas>
+        <figcaption>Chance of precipitation (%) and amount ({{ chart_data.precipitation_unit }}), local time</figcaption>
+      </figure>
+
+      <details class="chart-table">
+        <summary>Show the forecast as a table</summary>
+        <div class="table-scroll">
+          <table class="forecast-table">
+            <caption>3-hour forecast for {{ location|place_name }} in local time</caption>
+            <thead>
+              <tr>
+                <th scope="col">Time</th>
+                <th scope="col">Temperature</th>
+                <th scope="col">Chance of precipitation</th>
+                <th scope="col">Precipitation</th>
+                <th scope="col">Conditions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for entry in forecast.entries %}
+                <tr>
+                  <th scope="row">{{ entry.timestamp|hour_label }}</th>
+                  <td>{{ entry.temperature|temperature:unit }}</td>
+                  <td>{{ entry.pop|percent }}</td>
+                  <td>{{ entry.precipitation_mm|precipitation:unit }}</td>
+                  <td>{{ entry.description|capfirst }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </details>
+
+      {{ chart_data|json_script:"forecast-chart-data" }}
+    {% endif %}
+  </section>
+{% endblock %}
+
+{% block scripts %}
+  {% if chart_data %}
+    <script src="{% static 'vendor/chartjs/4.4.7/chart.umd.js' %}" defer></script>
+    <script src="{% static 'weather/js/charts.js' %}" defer></script>
   {% endif %}
 {% endblock %}

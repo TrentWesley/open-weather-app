@@ -206,10 +206,10 @@ class UnitPreferenceTests(DashboardTestCase):
 
 
 class CachingAndCallBudgetTests(DashboardTestCase):
-    def test_nfr_perf3_one_current_weather_call_and_no_forecast_call(self):
+    def test_nfr_perf3_one_call_per_endpoint_per_page_load(self):
         self.get()
         self.assertEqual(self.current.call_count, 1)
-        self.forecast.assert_not_called()
+        self.assertEqual(self.forecast.call_count, 1)
 
     def test_nfr_cache1_reload_is_served_from_cache(self):
         self.get()
@@ -236,8 +236,12 @@ class StaleAndErrorTests(DashboardTestCase):
         self.assertContains(response, "Last updated Thu, Oct 22 · 8:20 AM")
         self.assertContains(response, "68°F")
 
+    def fail_both_sections(self, error):
+        self.current.side_effect = error
+        self.forecast.side_effect = error
+
     def test_nfr_ft1_error_without_cached_data_shows_friendly_message(self):
-        self.current.side_effect = ServiceUnavailableError()
+        self.fail_both_sections(ServiceUnavailableError())
         response = self.get()
         self.assertEqual(response.status_code, 503)
         self.assertTemplateUsed(response, "weather/dashboard.html")
@@ -247,14 +251,14 @@ class StaleAndErrorTests(DashboardTestCase):
         self.assertNotContains(response, "Traceback", status_code=503)
 
     def test_nfr_ft4_rate_limit_and_key_errors_have_distinct_messages(self):
-        self.current.side_effect = RateLimitError(status_code=429)
+        self.fail_both_sections(RateLimitError(status_code=429))
         self.assertContains(self.get(), "too many requests", status_code=503)
         cache.clear()
-        self.current.side_effect = AuthenticationError(status_code=401)
+        self.fail_both_sections(AuthenticationError(status_code=401))
         self.assertContains(self.get(), "not configured correctly", status_code=503)
 
     def test_error_page_keeps_the_unit_toggle(self):
-        self.current.side_effect = ServiceUnavailableError()
+        self.fail_both_sections(ServiceUnavailableError())
         self.assertContains(self.get(), 'action="/preferences/unit/"', status_code=503)
 
 

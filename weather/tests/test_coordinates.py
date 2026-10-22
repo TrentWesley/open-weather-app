@@ -49,6 +49,7 @@ class DashboardLandingTests(OfflineTestCase):
         for name, fixture in (
             ("current_weather", "current_weather.json"),
             ("reverse_geocode", "reverse_geocode.json"),
+            ("forecast_5day", "forecast_5day.json"),
         ):
             patcher = mock.patch.object(
                 OpenWeatherClient, name, return_value=load_fixture(fixture)
