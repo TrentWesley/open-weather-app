@@ -1,0 +1,40 @@
+{% load static %}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Open Weather{% endblock %}</title>
+  <link rel="stylesheet" href="{% static 'css/site.css' %}">
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to main content</a>
+
+  <header class="site-header">
+    <nav class="site-nav" aria-label="Main">
+      <a class="site-brand" href="/">Open Weather</a>
+      {% block nav %}{% endblock %}
+    </nav>
+  </header>
+
+  <main id="main-content" tabindex="-1">
+    {% if messages %}
+      <ul class="messages" role="status">
+        {% for message in messages %}
+          <li class="message message-{{ message.tags }}">{{ message }}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="site-footer">
+    <p>Weather data provided by <a href="https://openweathermap.org/">OpenWeather</a>.</p>
+  </footer>
+
+  {# Shared region for announcing dynamic updates to assistive technologies (NFR-AC-9). #}
+  <div id="live-region" class="visually-hidden" aria-live="polite" aria-atomic="true"></div>
+
+  {% block scripts %}{% endblock %}
+</body>
+</html>

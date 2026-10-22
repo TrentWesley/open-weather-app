@@ -1,0 +1,88 @@
+---
+title: Open Weather Application — Use Case Diagram
+---
+%% Mermaid has no native UML use case diagram type. This flowchart follows UML
+%% use case notation: actors are boxes outside the system boundary, use cases are
+%% ovals inside it, «include» points from base to included use case, and «extend»
+%% points from the extending use case to the base it extends.
+flowchart LR
+    User["«actor»<br/>User"]
+    RegUser["«actor»<br/>Registered User"]
+    OWM["«actor»<br/>OpenWeather API"]
+
+    RegUser -- "«generalization»" --> User
+
+    subgraph System["Open Weather Application"]
+        direction TB
+        UC1(["Register (FR-1)"])
+        UC2(["Log In (FR-2)"])
+        UC3(["Log Out (FR-2)"])
+        UC4(["Set Temperature Unit (FR-3)"])
+
+        UC5(["Search by City Name (FR-4)"])
+        UC6(["Search by Postal Code (FR-5)"])
+        UC7(["Geocode Location"])
+        UC8(["Choose Among Matching Locations (FR-6)"])
+        UC9(["Use Device Location (FR-7)"])
+        UC10(["Reverse Geocode Coordinates"])
+
+        UC11(["View Weather Dashboard"])
+        UC12(["View Current Weather (FR-8)"])
+        UC13(["View UV Index (FR-8)"])
+        UC14(["View Forecast and Charts (FR-9)"])
+        UC15(["View Interactive Weather Map (FR-12)"])
+        UC16(["Show Favorite Markers (FR-12)"])
+
+        UC17(["Manage Favorites (FR-10)"])
+        UC18(["Save Location to Favorites (FR-11)"])
+        UC19(["Remove Favorite (FR-10)"])
+    end
+
+    %% Primary actor associations
+    User --- UC1
+    User --- UC2
+    User --- UC4
+    User --- UC5
+    User --- UC6
+    User --- UC9
+    User --- UC11
+    User --- UC15
+    RegUser --- UC3
+    RegUser --- UC17
+    RegUser --- UC18
+
+    %% «include» relationships (base ..> included)
+    UC5 -. "«include»" .-> UC7
+    UC6 -. "«include»" .-> UC7
+    UC9 -. "«include»" .-> UC10
+    UC5 -. "«include»" .-> UC11
+    UC6 -. "«include»" .-> UC11
+    UC9 -. "«include»" .-> UC11
+    UC11 -. "«include»" .-> UC12
+    UC11 -. "«include»" .-> UC14
+    UC17 -. "«include»" .-> UC12
+    UC17 -. "«include»" .-> UC19
+
+    %% «extend» relationships (extension ..> base)
+    UC8 -. "«extend»<br/>[more than one match]" .-> UC5
+    UC13 -. "«extend»<br/>[endpoint/plan provides UV]" .-> UC12
+    UC18 -. "«extend»<br/>[from search results]" .-> UC8
+    UC18 -. "«extend»<br/>[from dashboard]" .-> UC11
+    UC2 -. "«extend»<br/>[not logged in]" .-> UC18
+    UC16 -. "«extend»<br/>[user logged in]" .-> UC15
+
+    %% Secondary actor associations
+    UC7 --- OWM
+    UC10 --- OWM
+    UC12 --- OWM
+    UC13 --- OWM
+    UC14 --- OWM
+    UC15 --- OWM
+
+    %% Actor associations are plain lines (no arrowheads) in UML
+    linkStyle 1,2,3,4,5,6,7,8,9,10,11,28,29,30,31,32,33 marker-end:none,marker-start:none
+
+    classDef actor fill:#fff7e0,stroke:#8a6d1a,stroke-width:2px,color:#000
+    classDef usecase fill:#e8f1ff,stroke:#2457a6,color:#000
+    class User,RegUser,OWM actor
+    class UC1,UC2,UC3,UC4,UC5,UC6,UC7,UC8,UC9,UC10,UC11,UC12,UC13,UC14,UC15,UC16,UC17,UC18,UC19 usecase

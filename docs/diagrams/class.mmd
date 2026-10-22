@@ -1,0 +1,172 @@
+---
+title: Open Weather Application — Class Diagram (planned design)
+---
+classDiagram
+    direction LR
+
+    namespace accounts {
+        class User {
+            <<Django auth>>
+            +int id
+            +str username
+            +str email
+            -str password_hash
+            +check_password(raw) bool
+        }
+        class UserProfile {
+            +User user
+            +TemperatureUnit temperature_unit
+            +units_param() str
+        }
+        class TemperatureUnit {
+            <<enumeration>>
+            IMPERIAL
+            METRIC
+        }
+    }
+
+    namespace weather {
+        class FavoriteLocation {
+            +User user
+            +str name
+            +str state
+            +str country
+            +Decimal latitude
+            +Decimal longitude
+            +datetime created_at
+            +int MAX_PER_USER = 20$
+        }
+        class Location {
+            <<value object>>
+            +str name
+            +str state
+            +str country
+            +float latitude
+            +float longitude
+        }
+        class CurrentWeather {
+            <<value object>>
+            +float temperature
+            +float feels_like
+            +float temp_min
+            +float temp_max
+            +str description
+            +str icon
+            +int humidity
+            +float wind_speed
+            +int wind_deg
+            +int pressure
+            +int visibility
+            +int clouds
+            +float|None uv_index
+            +datetime sunrise
+            +datetime sunset
+            +datetime retrieved_at
+            +bool is_stale
+            +wind_compass() str
+            +uv_category() str|None
+        }
+        class Forecast {
+            <<value object>>
+            +datetime retrieved_at
+            +bool is_stale
+            +daily_summaries() list~DailySummary~
+            +chart_data() dict
+        }
+        class ForecastEntry {
+            <<value object>>
+            +datetime timestamp
+            +float temperature
+            +float pop
+            +float precipitation_mm
+            +str icon
+            +str description
+        }
+        class DailySummary {
+            <<value object>>
+            +date date
+            +float high
+            +float low
+            +str icon
+            +float max_pop
+        }
+        class MapLayer {
+            <<enumeration>>
+            TEMPERATURE
+            PRECIPITATION
+            CLOUDS
+            WIND
+        }
+        class LocationSearchService {
+            +search(query) list~Location~
+            +reverse(lat, lon) Location
+            -is_postal_code(query) bool
+        }
+        class WeatherService {
+            +current(location, unit) CurrentWeather
+            +forecast(location, unit) Forecast
+        }
+        class OpenWeatherClient {
+            -str api_key
+            +int timeout = 5
+            +int retries = 1
+            +geocode_direct(query, limit=5) list~dict~
+            +geocode_zip(zip_code, country="US") dict
+            +reverse_geocode(lat, lon) list~dict~
+            +current_weather(lat, lon, units) dict
+            +forecast_5day(lat, lon, units) dict
+            +uv_index(lat, lon) float|None
+            +map_tile(layer, z, x, y) bytes
+        }
+        class WeatherCache {
+            <<Django cache>>
+            +GEOCODE_TTL = 24h
+            +CURRENT_TTL = 10min
+            +FORECAST_TTL = 30min
+            +get(key) object|None
+            +get_stale(key) object|None
+            +set(key, value, ttl)
+            +make_key(endpoint, lat, lon, units)$ str
+        }
+        class OpenWeatherError {
+            <<exception>>
+            +int status_code
+            +str endpoint
+        }
+        class RateLimitError {
+            <<exception>>
+        }
+        class AuthenticationError {
+            <<exception>>
+        }
+        class ServiceUnavailableError {
+            <<exception>>
+        }
+    }
+
+    User "1" -- "1" UserProfile : has
+    UserProfile --> "1" TemperatureUnit : temperature_unit
+    User "1" -- "0..20" FavoriteLocation : owns
+
+    Forecast "1" *-- "1..*" ForecastEntry : entries
+    Forecast "1" *-- "1..6" DailySummary : summaries
+    Forecast "*" --> "1" Location : for
+    CurrentWeather "*" --> "1" Location : for
+
+    LocationSearchService "1" --> "1" OpenWeatherClient : uses
+    LocationSearchService "1" --> "1" WeatherCache : uses
+    LocationSearchService ..> "0..5" Location : returns
+    WeatherService "1" --> "1" OpenWeatherClient : uses
+    WeatherService "1" --> "1" WeatherCache : uses
+    WeatherService ..> CurrentWeather : creates
+    WeatherService ..> Forecast : creates
+    OpenWeatherClient ..> MapLayer : uses
+    OpenWeatherClient ..> OpenWeatherError : raises
+
+    OpenWeatherError <|-- RateLimitError
+    OpenWeatherError <|-- AuthenticationError
+    OpenWeatherError <|-- ServiceUnavailableError
+
+    note for CurrentWeather "uv_index is None when the configured endpoint or plan<br>does not provide UV (free Current Weather 2.5 does not;<br>One Call 3.0 does). The dashboard then shows<br>'UV index unavailable'."
+    note for UserProfile "Anonymous visitors store the unit in the session.<br>Default: IMPERIAL (°F)."
+    note for FavoriteLocation "Unique per (user, latitude, longitude),<br>coordinates rounded to 4 decimals."

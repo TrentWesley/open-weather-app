@@ -1,0 +1,65 @@
+---
+title: Open Weather Application — State Machine Diagram (Weather Search)
+---
+stateDiagram-v2
+    direction TB
+
+    [*] --> Idle
+
+    Idle --> Validating : submit query
+    Idle --> RequestingPermission : click "Use my location"
+
+    Validating --> InvalidInput : [query empty]
+    Validating --> Geocoding : [query valid] / detect city or postal code
+    InvalidInput --> Validating : resubmit
+
+    state Geocoding {
+        [*] --> CheckingCache
+        CheckingCache --> CallingGeocodeAPI : cache miss
+        CallingGeocodeAPI --> CachingResult : 200 OK
+        CachingResult --> [*]
+        CheckingCache --> [*] : cache hit
+    }
+
+    state matchCount <<choice>>
+    Geocoding --> matchCount : results ready
+    Geocoding --> SearchError : timeout / 429 / 401 / 5xx
+    matchCount --> NoResults : [0 matches]
+    matchCount --> AwaitingSelection : [more than 1 match]
+    matchCount --> LoadingWeather : [exactly 1 match]
+
+    AwaitingSelection --> LoadingWeather : user selects location
+    NoResults --> Validating : submit new query
+
+    RequestingPermission --> LocationUnavailable : denied / timeout (10 s) / unsupported
+    RequestingPermission --> ReverseGeocoding : coordinates received
+    ReverseGeocoding --> LoadingWeather : place name resolved
+    ReverseGeocoding --> SearchError : API error
+    LocationUnavailable --> Idle : dismiss message
+
+    state fetchResult <<choice>>
+    LoadingWeather --> fetchResult : fetch current + forecast
+    fetchResult --> DisplayingWeather : [fresh or cached data]
+    fetchResult --> DisplayingStale : [API error and stale cache exists]
+    fetchResult --> SearchError : [API error and no cache]
+
+    state DisplayingWeather {
+        [*] --> Rendered
+        Rendered --> Rendered : unit changed / redraw values and charts
+        Rendered --> Saving : click "Save to favorites" [logged in]
+        Saving --> Rendered : saved / duplicate / limit reached
+    }
+
+    DisplayingStale --> LoadingWeather : retry
+    DisplayingStale --> DisplayingWeather : fresh data received
+    SearchError --> Idle : dismiss / retry
+
+    DisplayingWeather --> Validating : submit new query
+    DisplayingWeather --> RequestingPermission : click "Use my location"
+    DisplayingWeather --> LoadingWeather : cache expired and page refreshed
+    DisplayingWeather --> [*] : leave page
+
+    note right of DisplayingWeather
+        UV index shown only when the endpoint/plan
+        provides it, otherwise "UV index unavailable"
+    end note

@@ -1,0 +1,109 @@
+---
+title: Open Weather Application — Sequence Diagram (Search, View, Bookmark)
+---
+sequenceDiagram
+    autonumber
+    actor User
+    participant Browser as Browser (HTML/JS)
+    participant View as Django Views
+    participant Search as LocationSearchService
+    participant Weather as WeatherService
+    participant Cache as WeatherCache
+    participant Client as OpenWeatherClient
+    participant DB as SQLite
+    participant OWM as OpenWeather API
+
+    %% ---------- Search (FR-4 / FR-5) ----------
+    User->>Browser: Enter "Springfield" and submit
+    Browser->>View: GET /search/?q=Springfield
+    View->>View: Trim and validate input
+    View->>Search: search("Springfield")
+    Search->>Cache: get(geocode key)
+    alt cache hit
+        Cache-->>Search: cached locations
+    else cache miss
+        Cache-->>Search: None
+        Search->>Client: geocode_direct(q, limit=5)
+        Client->>OWM: GET /geo/1.0/direct (timeout 5 s)
+        OWM-->>Client: 200 JSON
+        Client-->>Search: matches
+        Search->>Cache: set(geocode key, 24 h)
+    end
+    Search-->>View: list of Location (0..5)
+
+    %% ---------- Disambiguation (FR-6) ----------
+    alt 0 matches
+        View-->>Browser: "No locations found"
+    else exactly 1 match
+        View-->>Browser: 302 redirect to dashboard
+    else more than 1 match
+        View-->>Browser: Results list with "Save to favorites" buttons
+        User->>Browser: Select "Springfield, IL, US"
+    end
+
+    %% ---------- Dashboard (FR-3, FR-8, FR-9) ----------
+    Browser->>View: GET /weather/?lat=39.80&lon=-89.64
+    opt user is authenticated
+        View->>DB: SELECT UserProfile.temperature_unit
+        DB-->>View: IMPERIAL / METRIC
+    end
+    Note over View: Anonymous users: unit read from session (default °F)
+    View->>Weather: current(location, unit)
+    Weather->>Cache: get(current key)
+    opt cache miss
+        Weather->>Client: current_weather(lat, lon, units)
+        Client->>OWM: GET /data/2.5/weather
+        OWM-->>Client: 200 JSON
+        opt One Call 3.0 configured
+            Client->>OWM: GET /data/3.0/onecall (UV index)
+            OWM-->>Client: 200 JSON with uvi
+        end
+        Weather->>Cache: set(current key, 10 min)
+    end
+    Weather-->>View: CurrentWeather (uv_index may be None)
+    View->>Weather: forecast(location, unit)
+    Weather->>Cache: get(forecast key)
+    opt cache miss
+        Weather->>Client: forecast_5day(lat, lon, units)
+        Client->>OWM: GET /data/2.5/forecast
+        alt success
+            OWM-->>Client: 200 JSON (3-hour steps)
+            Weather->>Cache: set(forecast key, 30 min)
+        else timeout, 429, 401 or 5xx (retried once)
+            Client-->>Weather: OpenWeatherError
+            Weather->>Cache: get_stale(forecast key)
+            Note over Weather: Stale data shown with age notice,<br/>otherwise forecast section shows an error
+        end
+    end
+    Weather-->>View: Forecast
+    View-->>Browser: Dashboard HTML + chart data (JSON)
+    Browser->>Browser: Draw Chart.js charts and Leaflet map
+
+    %% ---------- Map tiles (FR-12) ----------
+    loop each visible map tile
+        Browser->>View: GET /weather/tiles/{layer}/{z}/{x}/{y}/
+        View->>Client: map_tile(layer, z, x, y)
+        Client->>OWM: GET tile (API key added server-side)
+        OWM-->>Client: PNG tile
+        Client-->>View: tile bytes
+        View-->>Browser: PNG tile
+    end
+
+    %% ---------- Bookmark (FR-10, FR-11) ----------
+    User->>Browser: Click "Save to favorites"
+    Browser->>View: POST /favorites/ (fetch, CSRF token)
+    alt not authenticated
+        View-->>Browser: Redirect to /accounts/login/?next=...
+    else authenticated
+        View->>DB: Count favorites and check duplicate
+        DB-->>View: count, exists
+        alt duplicate
+            View-->>Browser: 409 "Already in favorites"
+        else 20 favorites already saved
+            View-->>Browser: 400 "Favorites limit reached"
+        else ok
+            View->>DB: INSERT FavoriteLocation (atomic)
+            View-->>Browser: 201 Created
+        end
+        Browser->>Browser: Update button and announce via ARIA live region
+    end

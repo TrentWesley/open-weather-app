@@ -1,0 +1,68 @@
+---
+title: Open Weather Application — Activity Diagram (Location Search)
+---
+%% UML activity notation in a Mermaid flowchart: circles are initial/final nodes,
+%% diamonds are decision nodes, rounded boxes are actions.
+flowchart TD
+    Start((" ")) --> Choose{How does the user<br/>pick a location?}
+
+    %% ---------- Typed search (FR-4, FR-5) ----------
+    Choose -- "types a query" --> Trim["Trim whitespace"]
+    Trim --> Empty{Query empty?}
+    Empty -- yes --> ValErr["Show validation message<br/>(no API call)"]
+    ValErr --> Choose
+    Empty -- no --> Postal{Matches postal-code<br/>pattern?}
+    Postal -- yes --> Country["Default country to US<br/>if none given"]
+    Country --> ZipCache{Geocode result<br/>cached?}
+    Postal -- no --> CityCache{Geocode result<br/>cached?}
+    ZipCache -- no --> ZipCall["Call OpenWeather<br/>ZIP Geocoding API"]
+    CityCache -- no --> CityCall["Call OpenWeather<br/>Direct Geocoding API (limit 5)"]
+    ZipCall --> GeoOK{Request<br/>succeeded?}
+    CityCall --> GeoOK
+    GeoOK -- "no (timeout / 429 / 401 / 5xx)" --> GeoErr["Log error and show<br/>friendly error message"]
+    GeoErr --> Choose
+    GeoOK -- yes --> CacheGeo["Cache geocode result (24 h)"]
+    ZipCache -- yes --> Count
+    CityCache -- yes --> Count
+    CacheGeo --> Count{Number of<br/>matches?}
+    Count -- "0" --> NoRes["Show 'No locations found' /<br/>'Postal code not found'"]
+    NoRes --> Choose
+    Count -- "more than 1" --> List["Show up to 5 results:<br/>name, state, country, coordinates"]
+    List --> Pick["User selects a location"]
+    Pick --> Coords
+    Count -- "exactly 1" --> Coords
+
+    %% ---------- Device geolocation (FR-7) ----------
+    Choose -- "clicks 'Use my location'" --> Supported{Geolocation supported<br/>and secure context?}
+    Supported -- no --> Hidden["Button hidden/disabled;<br/>search box remains usable"]
+    Hidden --> Choose
+    Supported -- yes --> Ask["Browser asks for permission"]
+    Ask --> Granted{Permission granted<br/>within 10 s?}
+    Granted -- "no (denied / timeout / unavailable)" --> GeoMsg["Show non-blocking message"]
+    GeoMsg --> Choose
+    Granted -- yes --> Reverse["Reverse geocode coordinates<br/>to a place name"]
+    Reverse --> Coords
+
+    %% ---------- Load dashboard (FR-8, FR-9) ----------
+    Coords["Resolve latitude/longitude<br/>and unit preference (FR-3)"] --> Fetch["Fetch current weather (10 min cache)<br/>and forecast (30 min cache)"]
+    Fetch --> FetchOK{Fresh data<br/>available?}
+    FetchOK -- yes --> UV{UV index provided by<br/>endpoint/plan?}
+    FetchOK -- no --> Stale{Stale cached data<br/>exists?}
+    Stale -- yes --> StaleShow["Use stale data and show<br/>age notice"]
+    StaleShow --> UV
+    Stale -- no --> FetchErr["Show friendly error for the failed section;<br/>other sections still render"]
+    FetchErr --> Done
+    UV -- yes --> UVShow["Show UV index and risk category"]
+    UV -- no --> UVNA["Show 'UV index unavailable'"]
+    UVShow --> Render
+    UVNA --> Render["Render dashboard: current metrics,<br/>daily forecast, charts, map"]
+    Render --> Done((("&nbsp;")))
+
+    classDef terminal fill:#000,stroke:#000,color:#fff
+    classDef decision fill:#fff7e0,stroke:#8a6d1a,color:#000
+    classDef action fill:#e8f1ff,stroke:#2457a6,color:#000
+    classDef error fill:#fde8e8,stroke:#a62424,color:#000
+    class Start,Done terminal
+    class Choose,Empty,Postal,ZipCache,CityCache,GeoOK,Count,Supported,Granted,FetchOK,Stale,UV decision
+    class Trim,Country,ZipCall,CityCall,CacheGeo,List,Pick,Ask,Reverse,Coords,Fetch,StaleShow,UVShow,UVNA,Render action
+    class ValErr,GeoErr,NoRes,Hidden,GeoMsg,FetchErr error
