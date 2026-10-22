@@ -2,6 +2,7 @@
 from django.contrib.auth import SESSION_KEY
 from django.contrib.auth.models import User
 from django.contrib.messages import get_messages
+from django.core.cache import cache
 from django.test import Client, TestCase
 
 LOGIN_URL = "/accounts/login/"
@@ -12,6 +13,7 @@ GENERIC_ERROR = "Invalid username or password"
 
 class LoginTestCase(TestCase):
     def setUp(self):
+        cache.clear()  # The login rate limiter keeps its counters in the cache.
         self.user = User.objects.create_user("alice", "alice@example.com", PASSWORD)
 
     def login(self, username="alice", password=PASSWORD, next_url=None):

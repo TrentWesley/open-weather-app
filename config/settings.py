@@ -197,3 +197,5 @@ MAILERS = {
 LOGIN_URL = "login"
 LOGIN_REDIRECT_URL = "home"
 LOGOUT_REDIRECT_URL = "home"
+# NFR-SEC-7: failed logins allowed per IP and per username within `window` seconds.
+LOGIN_RATE_LIMIT = {"max_failures": 5, "window": 300}
