@@ -258,14 +258,14 @@ class ReverseGeocodeTests(SearchTestCase):
 
 
 class IsPostalCodeTests(SearchTestCase):
-    """The private detector named in class.mmd (activity.mmd: "Matches postal-code pattern?")."""
+    """is_postal_code from class.mmd (activity.mmd: "Matches postal-code pattern?")."""
 
     def test_postal_codes_are_detected(self):
         for query in ("79015", " 79015 ", "79015, US", "79015-1234", "SW1A 1AA, GB", "K1A 0B6"):
             with self.subTest(query=query):
-                self.assertTrue(self.service._is_postal_code(query))
+                self.assertTrue(self.service.is_postal_code(query))
 
     def test_place_names_are_not_postal_codes(self):
         for query in ("Amarillo", "Paris, FR", "Amarillo, TX", "Route 66", "79015, Texas"):
             with self.subTest(query=query):
-                self.assertFalse(self.service._is_postal_code(query))
+                self.assertFalse(self.service.is_postal_code(query))

@@ -100,7 +100,7 @@ classDiagram
         class LocationSearchService {
             +search(query) list~Location~
             +reverse(lat, lon) Location
-            -is_postal_code(query) bool
+            +is_postal_code(query) bool
         }
         class WeatherService {
             +current(location, unit) CurrentWeather

@@ -70,7 +70,11 @@ class LocationSearchService:
             self._cache.set(key, place, self._cache.GEOCODE_TTL)
         return dataclasses.replace(place, latitude=lat, longitude=lon)
 
-    def _is_postal_code(self, query: str) -> bool:
+    def is_postal_code(self, query: str) -> bool:
+        """True if search() would treat the query as a postal code (FR-5 AC-2).
+
+        Lets callers say "Postal code not found" rather than "No locations found".
+        """
         return _split_postal_code(query.strip()) is not None
 
     def _search_city(self, query: str) -> list[Location]:
