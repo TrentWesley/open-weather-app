@@ -1,0 +1,3 @@
+# Vendored third-party files must stay byte-identical to upstream (verified hashes),
+# so Git never converts their line endings.
+static/vendor/** -text
