@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+
+{% block title %}Create an account · Open Weather{% endblock %}
+
+{% block content %}
+  <h1>Create an account</h1>
+  <form method="post" action="{% url 'register' %}" class="form" novalidate>
+    {% csrf_token %}
+    {% include "includes/form_errors.html" %}
+    {% for field in form %}
+      {% include "includes/field.html" %}
+    {% endfor %}
+    <button type="submit" class="button">Create account</button>
+  </form>
+  <p>Already have an account? <a href="/accounts/login/">Log in</a></p>
+{% endblock %}

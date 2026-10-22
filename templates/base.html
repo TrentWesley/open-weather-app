@@ -14,6 +14,11 @@
     <nav class="site-nav" aria-label="Main">
       <a class="site-brand" href="/">Open Weather</a>
       {% block nav %}{% endblock %}
+      <ul class="nav-account">
+        {% if not user.is_authenticated %}
+          <li><a href="{% url 'register' %}">Register</a></li>
+        {% endif %}
+      </ul>
     </nav>
   </header>
 
