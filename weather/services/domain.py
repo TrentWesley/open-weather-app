@@ -1,12 +1,15 @@
 """Plain value objects returned by the weather services (see docs/diagrams/class.mmd)."""
 import math
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
+from itertools import groupby
 
 COMPASS_POINTS = (
     "N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
     "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW",
 )
+MAX_FORECAST_DAYS = 6
+MIDDAY_MINUTES = 12 * 60
 # WHO UV index bands: highest whole-number index in each category.
 UV_CATEGORIES = ((2, "Low"), (5, "Moderate"), (7, "High"), (10, "Very High"))
 
@@ -77,6 +80,18 @@ class ForecastEntry:
 
 
 @dataclass(frozen=True)
+class DailySummary:
+    """FR-9 AC-2: one calendar day of the forecast in the location's local time."""
+
+    date: date
+    high: float
+    low: float
+    icon: str
+    description: str
+    max_pop: float
+
+
+@dataclass(frozen=True)
 class Forecast:
     """FR-9: 3-hour forecast entries for a location, in the location's time zone."""
 
@@ -84,3 +99,29 @@ class Forecast:
     entries: tuple[ForecastEntry, ...]
     retrieved_at: datetime
     is_stale: bool = False
+
+    def daily_summaries(self) -> list[DailySummary]:
+        """Group entries by local calendar day (up to six days, partial days included).
+
+        The day's condition is the one nearest midday, so a rainy night doesn't
+        label a sunny day.
+        """
+        summaries = []
+        for day, group in groupby(self.entries, key=lambda e: e.timestamp.date()):
+            entries = list(group)
+            midday = min(entries, key=_minutes_from_midday)
+            summaries.append(
+                DailySummary(
+                    date=day,
+                    high=max(e.temperature for e in entries),
+                    low=min(e.temperature for e in entries),
+                    icon=midday.icon,
+                    description=midday.description,
+                    max_pop=max(e.pop for e in entries),
+                )
+            )
+        return summaries[:MAX_FORECAST_DAYS]
+
+
+def _minutes_from_midday(entry: ForecastEntry) -> int:
+    return abs(entry.timestamp.hour * 60 + entry.timestamp.minute - MIDDAY_MINUTES)
