@@ -152,6 +152,8 @@ WEATHER_CACHE_TTL = {
     'current': 60 * 10,
     'forecast': 60 * 30,
 }
+# How long a last-good copy outlives its fresh entry, for stale fallback (NFR-FT-2).
+WEATHER_CACHE_STALE_TTL = 60 * 60 * 24
 
 
 # OpenWeather API (backend only; the key never reaches the browser)
@@ -159,6 +161,7 @@ WEATHER_CACHE_TTL = {
 OPENWEATHER_API_KEY = env_required("OPENWEATHER_API_KEY")
 OPENWEATHER_TIMEOUT = 5  # seconds, NFR-PERF-2
 OPENWEATHER_RETRIES = 1  # NFR-FT-5
+OPENWEATHER_RETRY_BACKOFF = 0.5  # seconds to wait before the retry
 # UV index needs the One Call 3.0 subscription (FR-8 AC-4).
 OPENWEATHER_ENABLE_ONECALL = env_bool("OPENWEATHER_ENABLE_ONECALL", default=False)
 
@@ -178,6 +181,8 @@ LOGGING = {
     'loggers': {
         'accounts': {'handlers': ['console'], 'level': 'INFO'},
         'weather': {'handlers': ['console'], 'level': 'INFO'},
+        # urllib3 logs full request URLs, including appid, at DEBUG level.
+        'urllib3': {'level': 'WARNING'},
     },
 }
 

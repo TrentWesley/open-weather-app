@@ -1,0 +1,4 @@
+{
+  "lat": 35.222, "lon": -101.8313, "timezone": "America/Chicago", "timezone_offset": -18000,
+  "current": {"dt": 1792675200, "temp": 68.4, "uvi": 6.2, "clouds": 75, "wind_speed": 12.66}
+}

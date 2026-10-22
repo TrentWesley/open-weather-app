@@ -155,3 +155,17 @@ class StaticSettingsTests(SimpleTestCase):
 
     def test_weather_logger_configured(self):
         self.assertIn("weather", settings.LOGGING["loggers"])
+
+
+class OpenWeatherSettingsTests(SimpleTestCase):
+    def test_nfr_ft5_retry_backoff_is_short(self):
+        self.assertGreater(settings.OPENWEATHER_RETRY_BACKOFF, 0)
+        self.assertLessEqual(settings.OPENWEATHER_RETRY_BACKOFF, 1)
+
+    def test_nfr_ft2_stale_copies_outlive_fresh_entries(self):
+        self.assertGreater(settings.WEATHER_CACHE_STALE_TTL, 0)
+
+    def test_nfr_rel2_urllib3_debug_logging_is_suppressed(self):
+        # urllib3 logs full request URLs (including appid) at DEBUG level.
+        logger = settings.LOGGING["loggers"]["urllib3"]
+        self.assertIn(logger["level"], ("WARNING", "ERROR"))

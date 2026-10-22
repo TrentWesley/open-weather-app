@@ -1,0 +1,19 @@
+{
+  "coord": {"lon": -101.8313, "lat": 35.222},
+  "weather": [{"id": 500, "main": "Rain", "description": "light rain", "icon": "10d"}],
+  "base": "stations",
+  "main": {
+    "temp": 68.4, "feels_like": 67.9, "temp_min": 65.1, "temp_max": 71.6,
+    "pressure": 1014, "humidity": 64, "sea_level": 1014, "grnd_level": 887
+  },
+  "visibility": 10000,
+  "wind": {"speed": 12.66, "deg": 315, "gust": 18.41},
+  "rain": {"1h": 0.42},
+  "clouds": {"all": 75},
+  "dt": 1792675200,
+  "sys": {"type": 2, "id": 2011234, "country": "US", "sunrise": 1792672862, "sunset": 1792713421},
+  "timezone": -18000,
+  "id": 5516233,
+  "name": "Amarillo",
+  "cod": 200
+}

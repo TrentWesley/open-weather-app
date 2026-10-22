@@ -1,0 +1,7 @@
+[
+  {"name": "Springfield", "local_names": {"en": "Springfield"}, "lat": 39.7990175, "lon": -89.6439575, "country": "US", "state": "Illinois"},
+  {"name": "Springfield", "local_names": {"en": "Springfield"}, "lat": 37.2081729, "lon": -93.2922715, "country": "US", "state": "Missouri"},
+  {"name": "Springfield", "lat": 42.1018764, "lon": -72.5886727, "country": "US", "state": "Massachusetts"},
+  {"name": "Springfield", "lat": 44.0462362, "lon": -123.0220289, "country": "US", "state": "Oregon"},
+  {"name": "Springfield", "lat": 39.9242266, "lon": -83.8088171, "country": "US", "state": "Ohio"}
+]
