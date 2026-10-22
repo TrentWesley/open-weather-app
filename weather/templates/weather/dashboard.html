@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+
+{% block title %}Weather for {{ lat|floatformat:2 }}, {{ lon|floatformat:2 }} · Open Weather{% endblock %}
+
+{% block content %}
+  {# Placeholder until the Phase 4 dashboard (FR-8, FR-9). #}
+  <h1>Weather for {{ lat|floatformat:2 }}, {{ lon|floatformat:2 }}</h1>
+  <p>Current conditions and the forecast for this location will appear here.</p>
+  <p><a href="{% url 'search' %}">Search for another location</a></p>
+{% endblock %}

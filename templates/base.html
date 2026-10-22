@@ -14,6 +14,11 @@
     <nav class="site-nav" aria-label="Main">
       <a class="site-brand" href="/">Open Weather</a>
       {% block nav %}{% endblock %}
+      <form class="nav-search" role="search" method="get" action="{% url 'search' %}">
+        <label for="nav-search-q" class="visually-hidden">Search for a city or postal code</label>
+        <input id="nav-search-q" type="search" name="q" maxlength="100" placeholder="City or postal code">
+        <button type="submit" class="button">Search</button>
+      </form>
       <ul class="nav-account">
         {% if user.is_authenticated %}
           <li>Signed in as <strong>{{ user.username }}</strong></li>

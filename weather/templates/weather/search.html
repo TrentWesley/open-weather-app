@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% block title %}{% if query %}Results for “{{ query }}”{% else %}Search{% endif %} · Open Weather{% endblock %}
+
+{% block content %}
+  <h1>{% if query %}Results for “{{ query }}”{% else %}Search for a location{% endif %}</h1>
+
+  {% if error_message %}
+    <div class="notice notice-error" role="alert"><p>{{ error_message }}</p></div>
+  {% endif %}
+
+  {% if no_results %}
+    <div class="notice" role="status">
+      <p><strong>{{ no_results.0 }}</strong> {{ no_results.1 }}</p>
+    </div>
+  {% endif %}
+
+  {% include "weather/includes/search_form.html" %}
+
+  {% if results %}
+    <h2 id="results-heading">{{ results|length }} locations match your search</h2>
+    <p>Choose the one you meant.</p>
+    <ol class="search-results" aria-labelledby="results-heading">
+      {% for result in results %}
+        {% with location=result.location %}
+          <li>
+            <a href="{{ result.url }}">{{ location.name }}{% if location.state %}, {{ location.state }}{% endif %}{% if location.country %}, {{ location.country }}{% endif %}</a>
+            <span class="coordinates">Latitude, longitude: {{ location.latitude|floatformat:2 }}, {{ location.longitude|floatformat:2 }}</span>
+          </li>
+        {% endwith %}
+      {% endfor %}
+    </ol>
+  {% endif %}
+{% endblock %}
