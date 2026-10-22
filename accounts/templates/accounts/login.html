@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block title %}Log in · Open Weather{% endblock %}
+
+{% block content %}
+  <h1>Log in</h1>
+  <form method="post" action="{% url 'login' %}" class="form" novalidate>
+    {% csrf_token %}
+    {% include "includes/form_errors.html" %}
+    {% for field in form %}
+      {% include "includes/field.html" %}
+    {% endfor %}
+    {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+    <button type="submit" class="button">Log in</button>
+  </form>
+  <p>New here? <a href="{% url 'register' %}">Create an account</a></p>
+{% endblock %}

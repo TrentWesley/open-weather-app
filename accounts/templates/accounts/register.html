@@ -12,5 +12,5 @@
     {% endfor %}
     <button type="submit" class="button">Create account</button>
   </form>
-  <p>Already have an account? <a href="/accounts/login/">Log in</a></p>
+  <p>Already have an account? <a href="{% url 'login' %}">Log in</a></p>
 {% endblock %}

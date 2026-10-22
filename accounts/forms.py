@@ -1,5 +1,5 @@
 from django import forms
-from django.contrib.auth.forms import UserCreationForm
+from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
 from django.contrib.auth.models import User
 
 
@@ -36,3 +36,12 @@ class RegistrationForm(AccessibleErrorsMixin, UserCreationForm):
     class Meta(UserCreationForm.Meta):
         model = User
         fields = ("username", "email")
+
+
+class LoginForm(AuthenticationForm):
+    """FR-2 AC-2: one generic error that doesn't reveal which field was wrong."""
+
+    error_messages = {
+        **AuthenticationForm.error_messages,
+        "invalid_login": "Invalid username or password",
+    }
