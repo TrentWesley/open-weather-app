@@ -40,8 +40,12 @@ flowchart TD
     Ask --> Granted{Permission granted<br/>within 10 s?}
     Granted -- "no (denied / timeout / unavailable)" --> GeoMsg["Show non-blocking message"]
     GeoMsg --> Choose
-    Granted -- yes --> Reverse["Reverse geocode coordinates<br/>to a place name"]
-    Reverse --> Coords
+    Granted -- yes --> ValidCoords{Coordinates valid?<br/>lat -90..90, lon -180..180}
+    ValidCoords -- no --> GeoMsg
+    ValidCoords -- yes --> Reverse["Reverse geocode coordinates<br/>to a place name"]
+    Reverse --> RevOK{Request<br/>succeeded?}
+    RevOK -- "no (timeout / 429 / 401 / 5xx)" --> GeoErr
+    RevOK -- yes --> Coords
 
     %% ---------- Load dashboard (FR-8, FR-9) ----------
     Coords["Resolve latitude/longitude<br/>and unit preference (FR-3)"] --> Fetch["Fetch current weather (10 min cache)<br/>and forecast (30 min cache)"]
@@ -63,6 +67,6 @@ flowchart TD
     classDef action fill:#e8f1ff,stroke:#2457a6,color:#000
     classDef error fill:#fde8e8,stroke:#a62424,color:#000
     class Start,Done terminal
-    class Choose,Empty,Postal,ZipCache,CityCache,GeoOK,Count,Supported,Granted,FetchOK,Stale,UV decision
+    class Choose,Empty,Postal,ZipCache,CityCache,GeoOK,Count,Supported,Granted,ValidCoords,RevOK,FetchOK,Stale,UV decision
     class Trim,Country,ZipCall,CityCall,CacheGeo,List,Pick,Ask,Reverse,Coords,Fetch,StaleShow,UVShow,UVNA,Render action
     class ValErr,GeoErr,NoRes,Hidden,GeoMsg,FetchErr error
