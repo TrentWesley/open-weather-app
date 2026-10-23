@@ -325,3 +325,42 @@ class ForecastValidationTests(WeatherServiceTestCase):
         self.client_.forecast_5day.return_value = data
         with self.assertRaises(OpenWeatherError):
             self.service.forecast(AMARILLO, TemperatureUnit.IMPERIAL)
+
+
+class CurrentManyTests(WeatherServiceTestCase):
+    """FR-10 AC-3, NFR-PERF-4: current weather for every favorite on one page."""
+
+    PLACES = [Location(f"Place {i}", "", "US", 10.0 + i, -100.0 - i) for i in range(4)]
+
+    def test_fr10_ac3_returns_weather_for_each_location_in_order(self):
+        results = self.service.current_many(self.PLACES, TemperatureUnit.IMPERIAL)
+        self.assertEqual([weather.location for weather in results], self.PLACES)
+        self.assertTrue(all(isinstance(weather, CurrentWeather) for weather in results))
+
+    def test_nfr_perf4_cached_locations_are_not_fetched_again(self):
+        self.service.current(self.PLACES[1], TemperatureUnit.IMPERIAL)
+        self.client_.current_weather.reset_mock()
+        self.service.current_many(self.PLACES, TemperatureUnit.IMPERIAL)
+        fetched = {call.args[:2] for call in self.client_.current_weather.call_args_list}
+        self.assertEqual(len(fetched), 3)
+        self.assertNotIn((11.0, -101.0), fetched)
+
+    def test_nfr_perf4_uncached_locations_are_fetched_concurrently(self):
+        self.assertGreater(WeatherService.MAX_PARALLEL_REQUESTS, 1)
+        with mock.patch("weather.services.weather.ThreadPoolExecutor") as executor:
+            executor.return_value.__enter__.return_value.map.side_effect = map
+            self.service.current_many(self.PLACES, TemperatureUnit.IMPERIAL)
+        executor.assert_called_once_with(max_workers=WeatherService.MAX_PARALLEL_REQUESTS)
+
+    def test_nfr_ft3_one_failure_does_not_hide_the_others(self):
+        good = load_fixture("current_weather.json")
+        self.client_.current_weather.side_effect = lambda lat, lon, units: (
+            (_ for _ in ()).throw(ServiceUnavailableError()) if lat == 12.0 else good
+        )
+        results = self.service.current_many(self.PLACES, TemperatureUnit.IMPERIAL)
+        self.assertIsNone(results[2])
+        self.assertEqual(sum(weather is not None for weather in results), 3)
+
+    def test_empty_list_makes_no_requests(self):
+        self.assertEqual(self.service.current_many([], TemperatureUnit.METRIC), [])
+        self.client_.current_weather.assert_not_called()

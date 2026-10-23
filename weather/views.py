@@ -1,5 +1,6 @@
 from urllib.parse import urlencode
 
+from django.contrib.auth.decorators import login_required
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
@@ -8,6 +9,7 @@ from django.views.decorators.http import require_GET
 
 from accounts.preferences import get_unit
 from weather.forms import CoordinatesForm, SearchForm
+from weather.models import FavoriteLocation
 from weather.services.domain import Location
 from weather.services.exceptions import (
     AuthenticationError,
@@ -117,6 +119,29 @@ def reverse_geocode(request: HttpRequest) -> HttpResponse:
         }
         return render(request, "weather/search.html", context, status=503)
     return redirect(dashboard_url(location))
+
+
+@login_required
+@require_GET
+def favorites(request: HttpRequest) -> HttpResponse:
+    """FR-10 AC-2/3/7: the user's own favorites, each with its current weather.
+
+    One query loads the favorites (NFR-PERF-6); weather comes from the cache
+    where possible (NFR-PERF-4).
+    """
+    saved = list(FavoriteLocation.objects.filter(user=request.user))
+    unit = get_unit(request)
+    locations = [favorite.to_location() for favorite in saved]
+    weather = WeatherService().current_many(locations, unit)
+    context = {
+        "favorites": [
+            {"favorite": favorite, "weather": current, "url": dashboard_url(location)}
+            for favorite, location, current in zip(saved, locations, weather)
+        ],
+        "unit": unit,
+        "max_favorites": FavoriteLocation.MAX_PER_USER,
+    }
+    return render(request, "weather/favorites.html", context)
 
 
 def place_for(lat: float, lon: float) -> Location:

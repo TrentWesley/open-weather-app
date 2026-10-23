@@ -461,6 +461,40 @@ main:focus {
   white-space: nowrap;
 }
 
+/* Favorites (FR-10, FR-11) */
+
+.favorites {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+  gap: 0.75rem;
+  margin: 0 0 var(--space);
+  padding: 0;
+  list-style: none;
+}
+
+.favorite {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 0.375rem;
+}
+
+.favorite > a {
+  font-weight: 600;
+}
+
+.favorite-weather {
+  margin: 0;
+}
+
+.favorite-stale {
+  color: var(--color-muted);
+  font-size: 0.875rem;
+}
+
 /* Forms (NFR-USE-3, NFR-AC-5) */
 
 .form {

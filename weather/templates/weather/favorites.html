@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% load weather_format %}
+
+{% block title %}Your favorites · Open Weather{% endblock %}
+
+{% block content %}
+  <h1>Your favorites</h1>
+
+  {% if favorites %}
+    <p>{{ favorites|length }} of {{ max_favorites }} saved.</p>
+    <ul class="favorites">
+      {% for item in favorites %}
+        {% with favorite=item.favorite weather=item.weather %}
+          <li class="favorite">
+            <a href="{{ item.url }}" data-loading>{{ favorite }}</a>
+            {% if weather %}
+              <p class="favorite-weather">{{ weather.temperature|temperature:unit }}, {{ weather.description|capfirst }}{% if weather.is_stale %} <span class="favorite-stale">(saved data)</span>{% endif %}</p>
+            {% else %}
+              <p class="favorite-weather">Current weather unavailable</p>
+            {% endif %}
+          </li>
+        {% endwith %}
+      {% endfor %}
+    </ul>
+  {% else %}
+    {# FR-10 AC-7 #}
+    <div class="notice" role="status">
+      <p>You haven't saved any locations yet. <a href="{% url 'search' %}">Search for a location</a> and choose “Save to favorites”.</p>
+    </div>
+  {% endif %}
+{% endblock %}

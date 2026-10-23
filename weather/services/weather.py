@@ -6,6 +6,7 @@ when OpenWeather fails (NFR-FT-2).
 """
 import dataclasses
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone as dt_timezone
 
 from django.conf import settings
@@ -23,6 +24,9 @@ logger = logging.getLogger(__name__)
 
 class WeatherService:
     """Fetch, validate and cache weather for a Location in the user's unit."""
+
+    # NFR-PERF-4: uncached favorites are fetched a few at a time, not one by one.
+    MAX_PARALLEL_REQUESTS = 5
 
     def __init__(
         self, client: OpenWeatherClient | None = None, cache: WeatherCache | None = None
@@ -44,6 +48,26 @@ class WeatherService:
             return self._stale_or_raise(key, error)
         self._cache.set(key, weather, self._cache.CURRENT_TTL)
         return weather
+
+    def current_many(
+        self, locations: list[Location], unit: TemperatureUnit | str
+    ) -> list[CurrentWeather | None]:
+        """FR-10 AC-3: current weather for each location, None where it is unavailable.
+
+        Cached locations are served from the cache; the rest are fetched
+        concurrently (NFR-PERF-4). One failure doesn't hide the others (NFR-FT-3).
+        """
+        if not locations:
+            return []
+
+        def current_or_none(location: Location) -> CurrentWeather | None:
+            try:
+                return self.current(location, unit)
+            except OpenWeatherError:
+                return None
+
+        with ThreadPoolExecutor(max_workers=self.MAX_PARALLEL_REQUESTS) as executor:
+            return list(executor.map(current_or_none, locations))
 
     def forecast(self, location: Location, unit: TemperatureUnit | str) -> Forecast:
         """Return the 3-hour forecast; raise OpenWeatherError if no data, fresh or stale."""
