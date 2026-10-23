@@ -35,6 +35,9 @@ classDiagram
             +Decimal longitude
             +datetime created_at
             +int MAX_PER_USER = 20$
+            +add(user, location)$ FavoriteLocation
+            +round_coordinate(value)$ Decimal
+            +to_location() Location
         }
         class Location {
             <<value object>>
@@ -148,6 +151,7 @@ classDiagram
     User "1" -- "1" UserProfile : has
     UserProfile --> "1" TemperatureUnit : temperature_unit
     User "1" -- "0..20" FavoriteLocation : owns
+    FavoriteLocation ..> Location : to_location()
 
     Forecast "1" *-- "1..*" ForecastEntry : entries
     Forecast "1" *-- "1..6" DailySummary : summaries
