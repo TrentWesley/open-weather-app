@@ -49,7 +49,7 @@ sequenceDiagram
     end
     Note over View: Anonymous users: unit read from session (default °F)
     View->>Search: reverse(lat, lon) for the place name
-    Search-->>View: Location (cached 24 h; coordinates if unavailable)
+    Search-->>View: Location (cached 24 h, named by coordinates if unavailable)
     View->>Weather: current(location, unit)
     Weather->>Cache: get(current key)
     opt cache miss
