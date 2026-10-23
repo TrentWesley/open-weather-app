@@ -490,6 +490,48 @@ main:focus {
   margin: 0;
 }
 
+.favorite-control {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.5rem 0;
+}
+
+.favorite-control form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.favorite-control form[hidden] {
+  display: none;
+}
+
+.favorite-saved {
+  font-weight: 600;
+}
+
+.favorite-saved::before {
+  content: "★ ";
+}
+
+.favorite-message {
+  margin: 0;
+  font-size: 0.875rem;
+}
+
+.favorite-message:empty {
+  display: none;
+}
+
+.favorite-message-error {
+  color: var(--color-error);
+  font-weight: 600;
+}
+
 .favorite-stale {
   color: var(--color-muted);
   font-size: 0.875rem;

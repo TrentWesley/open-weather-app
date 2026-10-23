@@ -8,6 +8,7 @@
     <div>
       <h1>{{ location|place_name }}</h1>
       <p class="coordinates">Latitude, longitude: {{ lat|floatformat:2 }}, {{ lon|floatformat:2 }}</p>
+      {% include "weather/includes/favorite_control.html" %}
     </div>
 
     {# FR-3 AC-1/5: switching units reloads this same location, redrawing values and charts. #}

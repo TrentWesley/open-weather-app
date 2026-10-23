@@ -1,0 +1,24 @@
+{% load l10n weather_format %}
+{# FR-11: plain POST forms, so bookmarking works without JavaScript (NFR-FT-6). #}
+{# favorites.js submits them with fetch and switches which one is shown. #}
+{% with place=location|place_name %}
+  <div class="favorite-control" data-favorite-control>
+    <form method="post" action="{% url 'favorites' %}" data-favorite-save{% if favorite %} hidden{% endif %}>
+      {% csrf_token %}
+      <input type="hidden" name="name" value="{{ location.name }}">
+      <input type="hidden" name="state" value="{{ location.state }}">
+      <input type="hidden" name="country" value="{{ location.country }}">
+      <input type="hidden" name="lat" value="{{ location.latitude|unlocalize }}">
+      <input type="hidden" name="lon" value="{{ location.longitude|unlocalize }}">
+      <input type="hidden" name="next" value="{{ request.get_full_path }}">
+      <button type="submit" class="button button-secondary">Save to favorites<span class="visually-hidden"> {{ place }}</span></button>
+    </form>
+    <form method="post"{% if favorite %} action="{% url 'favorite_delete' favorite.pk %}"{% endif %} data-favorite-remove{% if not favorite %} hidden{% endif %}>
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ request.get_full_path }}">
+      <span class="favorite-saved">Saved</span>
+      <button type="submit" class="button-link">Remove from favorites<span class="visually-hidden"> {{ place }}</span></button>
+    </form>
+    <p class="favorite-message" data-favorite-message></p>
+  </div>
+{% endwith %}

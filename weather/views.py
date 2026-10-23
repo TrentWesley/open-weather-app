@@ -65,8 +65,14 @@ def search(request: HttpRequest) -> HttpResponse:
         return redirect(dashboard_url(locations[0]))
     if not locations:
         context["no_results"] = NO_POSTAL_CODE if service.is_postal_code(query) else NO_LOCATIONS
+    saved = saved_favorites(request)
     context["results"] = [
-        {"location": location, "url": dashboard_url(location)} for location in locations
+        {
+            "location": location,
+            "url": dashboard_url(location),
+            "favorite": saved.get(coordinates_key(location.latitude, location.longitude)),
+        }
+        for location in locations
     ]
     return render(request, "weather/search.html", context)
 
@@ -85,7 +91,13 @@ def dashboard(request: HttpRequest) -> HttpResponse:
     unit = get_unit(request)
     location = place_for(lat, lon)
     service = WeatherService()
-    context = {"location": location, "lat": lat, "lon": lon, "unit": unit}
+    context = {
+        "location": location,
+        "lat": lat,
+        "lon": lon,
+        "unit": unit,
+        "favorite": favorite_at(request, lat, lon),
+    }
 
     try:
         weather = service.current(location, unit)
@@ -180,11 +192,7 @@ def add_favorite(request: HttpRequest) -> HttpResponse:
     try:
         favorite = FavoriteLocation.add(request.user, location)
     except FavoriteLocation.AlreadySaved:
-        favorite = FavoriteLocation.objects.get(
-            user=request.user,
-            latitude=FavoriteLocation.round_coordinate(location.latitude),
-            longitude=FavoriteLocation.round_coordinate(location.longitude),
-        )
+        favorite = favorite_at(request, location.latitude, location.longitude)
         return favorite_outcome(
             request, as_json, next_url, 409, messages.INFO, ALREADY_SAVED, favorite
         )
@@ -245,6 +253,29 @@ def favorite_outcome(
         return JsonResponse(data, status=status)
     messages.add_message(request, level, message)
     return redirect(next_url)
+
+
+def saved_favorites(request: HttpRequest) -> dict[tuple, FavoriteLocation]:
+    """The user's favorites keyed by rounded coordinates, in one query (NFR-PERF-6)."""
+    if not request.user.is_authenticated:
+        return {}
+    owned = FavoriteLocation.objects.filter(user=request.user)
+    return {(favorite.latitude, favorite.longitude): favorite for favorite in owned}
+
+
+def favorite_at(request: HttpRequest, lat: float, lon: float) -> FavoriteLocation | None:
+    """The user's favorite at these (rounded) coordinates, if they saved one."""
+    if not request.user.is_authenticated:
+        return None
+    latitude, longitude = coordinates_key(lat, lon)
+    return FavoriteLocation.objects.filter(
+        user=request.user, latitude=latitude, longitude=longitude
+    ).first()
+
+
+def coordinates_key(lat: float, lon: float) -> tuple:
+    """Match a place to a saved favorite the way FavoriteLocation stores it (FR-10 AC-5)."""
+    return (FavoriteLocation.round_coordinate(lat), FavoriteLocation.round_coordinate(lon))
 
 
 def wants_json(request: HttpRequest) -> bool:

@@ -27,6 +27,7 @@
           <li>
             <a href="{{ result.url }}" data-loading>{{ location|place_name }}</a>
             <span class="coordinates">Latitude, longitude: {{ location.latitude|floatformat:2 }}, {{ location.longitude|floatformat:2 }}</span>
+            {% include "weather/includes/favorite_control.html" with favorite=result.favorite %}
           </li>
         {% endwith %}
       {% endfor %}
