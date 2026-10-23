@@ -3,18 +3,20 @@ from urllib.parse import urlencode
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import redirect_to_login
-from django.http import HttpRequest, HttpResponse, JsonResponse
+from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.db import transaction
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
+from django.utils.cache import add_never_cache_headers, patch_cache_control
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from accounts.preferences import get_unit
 from weather.forms import CoordinatesForm, FavoriteForm, SearchForm
 from weather.models import FavoriteLocation
-from weather.services.domain import Location
+from weather.services.client import OpenWeatherClient
+from weather.services.domain import Location, MapLayer
 from weather.services.exceptions import (
     AuthenticationError,
     OpenWeatherError,
@@ -29,6 +31,8 @@ FAVORITES_LIMIT_REACHED = (
     f"Favorites limit reached. You can save up to {FavoriteLocation.MAX_PER_USER} locations; "
     "remove one to add another."
 )
+MAX_TILE_ZOOM = 18
+TILE_BROWSER_CACHE_SECONDS = 600
 FORECAST_UNAVAILABLE = "The forecast isn't available right now. "
 LOCATION_LOOKUP_FAILED = "We couldn't look up your location. "
 NO_LOCATIONS = ("No locations found.", "Please check the spelling or try a postal code.")
@@ -291,6 +295,33 @@ def safe_next(request: HttpRequest, default: str) -> str:
     ):
         return next_url
     return default
+
+
+@require_GET
+def map_tile(request: HttpRequest, layer: str, z: int, x: int, y: int) -> HttpResponse:
+    """FR-12 AC-6: proxy one OpenWeather overlay tile, adding the key server-side.
+
+    The layer must be a MapLayer and z/x/y a real tile (NFR-SEC-5), so this can't
+    be used to fetch arbitrary URLs. Tiles are cached briefly by the browser;
+    failures are never cached, and Leaflet shows them as an unavailable overlay.
+    """
+    try:
+        map_layer = MapLayer(layer)
+    except ValueError:
+        raise Http404("Unknown map layer.") from None
+    if z > MAX_TILE_ZOOM or x >= 2**z or y >= 2**z:
+        raise Http404("No such tile.")
+    try:
+        tile = OpenWeatherClient().map_tile(map_layer, z, x, y)
+    except OpenWeatherError:
+        response = HttpResponse(
+            "Map overlay unavailable.", status=503, content_type="text/plain; charset=utf-8"
+        )
+        add_never_cache_headers(response)
+        return response
+    response = HttpResponse(tile, content_type="image/png")
+    patch_cache_control(response, public=True, max_age=TILE_BROWSER_CACHE_SECONDS)
+    return response
 
 
 def place_for(lat: float, lon: float) -> Location:
