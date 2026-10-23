@@ -175,3 +175,11 @@ class FormErrorTests(OfflineTestCase):
         )
         self.assertIsNotNone(field, "password confirmation field with its error not found")
         self.assertIn('class="field-errors" id="id_password2_error"', field.group())
+
+
+class MapAttributionTests(OfflineTestCase):
+    def test_nfr_ac4_map_attribution_links_are_underlined_not_colour_only(self):
+        """WCAG 1.4.1: Leaflet removes the underline, leaving colour (2.55:1) as the only cue."""
+        self.assertRegex(
+            CSS, r"\.map \.leaflet-control-attribution a\s*{\s*text-decoration: underline;"
+        )

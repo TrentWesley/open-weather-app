@@ -673,6 +673,12 @@ main:focus {
   outline-offset: 2px;
 }
 
+/* Leaflet removes the underline from attribution links, leaving colour (2.55:1
+   against the text) as the only cue (WCAG 1.4.1). */
+.map .leaflet-control-attribution a {
+  text-decoration: underline;
+}
+
 .map-help {
   color: var(--color-muted);
   font-size: 0.875rem;
