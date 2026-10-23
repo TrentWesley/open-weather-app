@@ -2,6 +2,7 @@
 import math
 from dataclasses import dataclass
 from datetime import date, datetime
+from enum import Enum
 from itertools import groupby
 
 from weather import formatting
@@ -156,3 +157,92 @@ class Forecast:
 
 def _minutes_from_midday(entry: ForecastEntry) -> int:
     return abs(entry.timestamp.hour * 60 + entry.timestamp.minute - MIDDAY_MINUTES)
+
+
+class MapLayer(Enum):
+    """FR-12 AC-3/4: the OpenWeather overlay layers, by URL slug, with their legends."""
+
+    TEMPERATURE = "temperature"
+    PRECIPITATION = "precipitation"
+    CLOUDS = "clouds"
+    WIND = "wind"
+
+    @property
+    def tile_name(self) -> str:
+        """The layer's name in OpenWeather's Weather Maps 1.0 tile URLs."""
+        return _TILE_NAMES[self]
+
+    @property
+    def label(self) -> str:
+        return _LAYER_LABELS[self]
+
+    def legend(self, unit: str) -> list[tuple[str, str]]:
+        """FR-12 AC-4: (label in the user's unit, CSS colour) for each colour stop.
+
+        The stops and colours follow OpenWeather's published scale for each layer.
+        """
+        return [(_legend_label(self, value, unit), color) for value, color in _LEGENDS[self]]
+
+
+_TILE_NAMES = {
+    MapLayer.TEMPERATURE: "temp_new",
+    MapLayer.PRECIPITATION: "precipitation_new",
+    MapLayer.CLOUDS: "clouds_new",
+    MapLayer.WIND: "wind_new",
+}
+_LAYER_LABELS = {
+    MapLayer.TEMPERATURE: "Temperature",
+    MapLayer.PRECIPITATION: "Precipitation",
+    MapLayer.CLOUDS: "Clouds",
+    MapLayer.WIND: "Wind speed",
+}
+# Stops in OpenWeather's units: °C, mm/h, % cloud cover, m/s.
+_LEGENDS = {
+    MapLayer.TEMPERATURE: (
+        (-40, "rgb(130, 22, 146)"),
+        (-30, "rgb(130, 87, 219)"),
+        (-20, "rgb(32, 140, 236)"),
+        (-10, "rgb(32, 196, 232)"),
+        (0, "rgb(35, 221, 221)"),
+        (10, "rgb(194, 255, 40)"),
+        (20, "rgb(255, 240, 40)"),
+        (25, "rgb(255, 194, 40)"),
+        (30, "rgb(252, 128, 20)"),
+    ),
+    MapLayer.PRECIPITATION: (
+        (0.5, "rgba(120, 120, 190, 0.4)"),
+        (1, "rgba(110, 110, 205, 0.6)"),
+        (10, "rgba(80, 80, 225, 0.8)"),
+        (140, "rgb(20, 20, 255)"),
+    ),
+    MapLayer.CLOUDS: (
+        (0, "rgba(255, 255, 255, 0)"),
+        (25, "rgba(251, 250, 255, 0.25)"),
+        (50, "rgba(247, 247, 255, 0.5)"),
+        (75, "rgba(244, 244, 255, 0.8)"),
+        (100, "rgb(240, 240, 255)"),
+    ),
+    MapLayer.WIND: (
+        (5, "rgba(238, 206, 206, 0.6)"),
+        (15, "rgba(179, 100, 188, 0.8)"),
+        (25, "rgba(63, 33, 59, 0.9)"),
+        (50, "rgb(116, 76, 172)"),
+        (100, "rgb(70, 0, 175)"),
+    ),
+}
+MPH_PER_METRE_PER_SECOND = 2.236936
+
+
+def _legend_label(layer: MapLayer, value: float, unit: str) -> str:
+    imperial = unit == "imperial"
+    if layer is MapLayer.TEMPERATURE:
+        return formatting.format_temperature(value * 9 / 5 + 32 if imperial else value, unit)
+    if layer is MapLayer.PRECIPITATION:
+        if imperial:
+            return f"{formatting.trimmed(value / formatting.MM_PER_INCH, 1)} in/h"
+        return f"{formatting.trimmed(value, 1)} mm/h"
+    if layer is MapLayer.WIND:
+        if imperial:
+            return f"{formatting.whole(value * MPH_PER_METRE_PER_SECOND)} mph"
+        return f"{formatting.trimmed(value, 1)} m/s"
+    return f"{value}%"

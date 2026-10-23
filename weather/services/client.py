@@ -11,6 +11,7 @@ from typing import Any
 import requests
 from django.conf import settings
 
+from weather.services.domain import MapLayer
 from weather.services.exceptions import (
     AuthenticationError,
     OpenWeatherError,
@@ -27,10 +28,11 @@ GEOCODE_REVERSE = "/geo/1.0/reverse"
 CURRENT_WEATHER = "/data/2.5/weather"
 FORECAST_5DAY = "/data/2.5/forecast"
 ONE_CALL = "/data/3.0/onecall"
+TILE_BASE_URL = "https://tile.openweathermap.org"
 
 
 class OpenWeatherClient:
-    """Thin wrapper over the OpenWeather HTTP APIs that returns parsed JSON."""
+    """Thin wrapper over the OpenWeather HTTP APIs: parsed JSON, or PNG bytes for tiles."""
 
     def __init__(self, session: requests.Session | None = None) -> None:
         self._api_key: str = settings.OPENWEATHER_API_KEY
@@ -64,13 +66,41 @@ class OpenWeatherClient:
         uvi = (data.get("current") or {}).get("uvi")
         return float(uvi) if isinstance(uvi, (int, float)) else None
 
+    def map_tile(self, layer: MapLayer, z: int, x: int, y: int) -> bytes:
+        """FR-12 AC-6: one Weather Maps 1.0 PNG tile, fetched with the key server-side.
+
+        Logs name the layer only (`/map/<layer>`), never the key or the full URL.
+        """
+        endpoint = f"/map/{layer.tile_name}"
+        url = f"{TILE_BASE_URL}{endpoint}/{z}/{x}/{y}.png"
+        response = self._request(url, endpoint, {})
+        if not response.headers.get("Content-Type", "").startswith("image/"):
+            logger.warning(
+                "OpenWeather %s returned a non-image tile (status=%s)",
+                endpoint, response.status_code,
+            )
+            raise OpenWeatherError(
+                "OpenWeather returned a malformed tile.",
+                endpoint=endpoint,
+                status_code=response.status_code,
+            )
+        return response.content
+
     def _get(self, endpoint: str, params: dict[str, Any], expect: type) -> Any:
-        """GET an endpoint, retrying transient failures, and return validated JSON."""
+        """GET a JSON endpoint and return its validated JSON."""
+        response = self._request(BASE_URL + endpoint, endpoint, params)
+        return self._parse(response, endpoint, expect)
+
+    def _request(self, url: str, endpoint: str, params: dict[str, Any]) -> requests.Response:
+        """GET `url` with the key added, retrying transient failures (NFR-FT-5).
+
+        Returns the successful response; raises an OpenWeatherError subclass otherwise.
+        """
         params = {**params, "appid": self._api_key}
         for attempt in range(self.retries + 1):
             try:
                 response = self._session.request(
-                    "GET", BASE_URL + endpoint, params=params, timeout=self.timeout
+                    "GET", url, params=params, timeout=self.timeout
                 )
             except requests.Timeout:
                 error = ServiceUnavailableError("OpenWeather timed out.", endpoint=endpoint)
@@ -84,7 +114,7 @@ class OpenWeatherClient:
             else:
                 status = response.status_code
                 if status < 400:
-                    return self._parse(response, endpoint, expect)
+                    return response
                 if status < 500:
                     raise self._client_error(endpoint, status)
                 error = ServiceUnavailableError(endpoint=endpoint, status_code=status)

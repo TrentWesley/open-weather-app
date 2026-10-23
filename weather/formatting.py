@@ -22,11 +22,11 @@ def round_half_up(value: float, places: int = 0) -> float:
     return float(Decimal(str(value)).quantize(step, rounding=ROUND_HALF_UP))
 
 
-def _whole(value: float) -> int:
+def whole(value: float) -> int:
     return int(round_half_up(value))
 
 
-def _trimmed(value: float, places: int) -> str:
+def trimmed(value: float, places: int) -> str:
     """Fixed decimals without trailing zeros: 0.10 -> "0.1", 3.00 -> "3"."""
     text = f"{round_half_up(value, places):.{places}f}"
     return text.rstrip("0").rstrip(".") if "." in text else text
@@ -48,31 +48,31 @@ def temperature_symbol(unit: TemperatureUnit | str) -> str:
 
 
 def format_temperature(value: float, unit: TemperatureUnit | str) -> str:
-    return f"{_whole(value)}{temperature_symbol(unit)}"
+    return f"{whole(value)}{temperature_symbol(unit)}"
 
 
 def format_speed(value: float, unit: TemperatureUnit | str) -> str:
     """FR-3 AC-6: mph for imperial, m/s for metric."""
     if TemperatureUnit(unit) == TemperatureUnit.IMPERIAL:
-        return f"{_whole(value)} mph"
+        return f"{whole(value)} mph"
     return f"{value:.1f} m/s"
 
 
 def format_distance(metres: float, unit: TemperatureUnit | str) -> str:
     if TemperatureUnit(unit) == TemperatureUnit.IMPERIAL:
-        return f"{_trimmed(metres / METRES_PER_MILE, 1)} mi"
-    return f"{_trimmed(metres / 1000, 1)} km"
+        return f"{trimmed(metres / METRES_PER_MILE, 1)} mi"
+    return f"{trimmed(metres / 1000, 1)} km"
 
 
 def format_precipitation(mm: float, unit: TemperatureUnit | str) -> str:
     """e.g. "1.3 mm" or "0.05 in"."""
     places = 2 if TemperatureUnit(unit) == TemperatureUnit.IMPERIAL else 1
-    return f"{_trimmed(precipitation_in_unit(mm, unit), places)} {precipitation_unit(unit)}"
+    return f"{trimmed(precipitation_in_unit(mm, unit), places)} {precipitation_unit(unit)}"
 
 
 def format_percent(fraction: float) -> str:
     """A 0-1 probability as a whole percentage, e.g. 0.35 -> "35%"."""
-    return f"{_whole(fraction * 100)}%"
+    return f"{whole(fraction * 100)}%"
 
 
 def format_time(moment: datetime) -> str:

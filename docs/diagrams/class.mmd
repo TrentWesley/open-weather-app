@@ -100,6 +100,9 @@ classDiagram
             PRECIPITATION
             CLOUDS
             WIND
+            +str tile_name
+            +str label
+            +legend(unit) list~tuple~
         }
         class LocationSearchService {
             +search(query) list~Location~
