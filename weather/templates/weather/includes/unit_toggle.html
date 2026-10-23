@@ -1,0 +1,10 @@
+{# FR-3 AC-1/5: switching units reloads this same page, redrawing values, charts and the map. #}
+<form class="unit-toggle" method="post" action="{% url 'toggle_unit' %}" data-loading>
+  {% csrf_token %}
+  <input type="hidden" name="next" value="{{ request.get_full_path }}">
+  <fieldset>
+    <legend class="visually-hidden">Temperature unit</legend>
+    <button type="submit" name="temperature_unit" value="imperial" aria-pressed="{% if unit == 'imperial' %}true{% else %}false{% endif %}">°F<span class="visually-hidden"> Fahrenheit</span></button>
+    <button type="submit" name="temperature_unit" value="metric" aria-pressed="{% if unit == 'metric' %}true{% else %}false{% endif %}">°C<span class="visually-hidden"> Celsius</span></button>
+  </fieldset>
+</form>

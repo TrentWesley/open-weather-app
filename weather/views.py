@@ -1,5 +1,3 @@
-from urllib.parse import urlencode
-
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import redirect_to_login
@@ -13,7 +11,9 @@ from django.utils.cache import add_never_cache_headers, patch_cache_control
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from accounts.preferences import get_unit
+from weather import maps
 from weather.forms import CoordinatesForm, FavoriteForm, SearchForm
+from weather.links import dashboard_url, map_url
 from weather.models import FavoriteLocation
 from weather.services.client import OpenWeatherClient
 from weather.services.domain import Location, MapLayer
@@ -103,6 +103,7 @@ def dashboard(request: HttpRequest) -> HttpResponse:
         "favorite": favorite_at(request, lat, lon),
     }
 
+    weather = None
     try:
         weather = service.current(location, unit)
         context.update(weather=weather, data_age=timezone.now() - weather.retrieved_at)
@@ -120,8 +121,38 @@ def dashboard(request: HttpRequest) -> HttpResponse:
     except OpenWeatherError as error:
         context["forecast_error"] = FORECAST_UNAVAILABLE + service_error_message(error)
 
+    # FR-12: the map panel shows even if both sections failed (NFR-FT-3).
+    selected = maps.selected_marker(location, weather, unit)
+    context["map"] = maps.map_context(
+        selected, maps.favorite_markers(request.user, unit, selected, fetch=False), unit
+    )
+    context["map_url"] = map_url(location)
+
     status = 503 if "current_error" in context and "forecast_error" in context else 200
     return render(request, "weather/dashboard.html", context, status=status)
+
+
+@require_GET
+def map_page(request: HttpRequest) -> HttpResponse:
+    """FR-12: the full-page map, centered on ?lat=&lon= when given.
+
+    Without coordinates it shows the user's favorites, or the whole world.
+    """
+    selected = None
+    unit = get_unit(request)
+    if "lat" in request.GET or "lon" in request.GET:
+        form = CoordinatesForm(request.GET)
+        if not form.is_valid():
+            return render(request, "weather/invalid_location.html", status=400)
+        location = place_for(form.cleaned_data["lat"], form.cleaned_data["lon"])
+        try:
+            weather = WeatherService().current(location, unit)
+        except OpenWeatherError:
+            weather = None
+        selected = maps.selected_marker(location, weather, unit)
+    favorites = maps.favorite_markers(request.user, unit, selected, fetch=True)
+    context = {"map": maps.map_context(selected, favorites, unit), "unit": unit}
+    return render(request, "weather/map.html", context)
 
 
 @require_GET
@@ -334,12 +365,6 @@ def place_for(lat: float, lon: float) -> Location:
         return LocationSearchService().reverse(lat, lon)
     except OpenWeatherError:
         return Location(f"{lat:.2f}, {lon:.2f}", "", "", lat, lon)
-
-
-def dashboard_url(location: Location) -> str:
-    """Dashboard link with coordinates to 4 decimal places (about 11 m)."""
-    params = {"lat": f"{location.latitude:.4f}", "lon": f"{location.longitude:.4f}"}
-    return f"{reverse('dashboard')}?{urlencode(params)}"
 
 
 def service_error_message(error: OpenWeatherError) -> str:

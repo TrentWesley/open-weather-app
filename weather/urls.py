@@ -7,6 +7,7 @@ urlpatterns = [
     path("search/", views.search, name="search"),
     path("weather/", views.dashboard, name="dashboard"),
     path("weather/reverse/", views.reverse_geocode, name="reverse_geocode"),
+    path("weather/map/", views.map_page, name="map"),
     path(
         "weather/tiles/<str:layer>/<int:z>/<int:x>/<int:y>/", views.map_tile, name="map_tile"
     ),

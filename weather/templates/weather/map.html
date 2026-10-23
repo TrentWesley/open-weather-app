@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{% if map.selected %}Weather map for {{ map.selected.name }}{% else %}Weather map{% endif %} · Open Weather{% endblock %}
+
+{% block extra_head %}
+  <link rel="stylesheet" href="{% static 'vendor/leaflet/1.9.4/leaflet.css' %}">
+{% endblock %}
+
+{% block content %}
+  <div class="dashboard-header">
+    <div>
+      <h1>{% if map.selected %}Weather map for {{ map.selected.name }}{% else %}Weather map{% endif %}</h1>
+      {% if map.selected %}<p><a href="{{ map.selected.url }}">Back to the forecast</a></p>{% endif %}
+    </div>
+    {% include "weather/includes/unit_toggle.html" %}
+  </div>
+
+  <div class="map-page">
+    {% include "weather/includes/map_panel.html" with places_level=2 %}
+  </div>
+{% endblock %}
+
+{% block scripts %}
+  <script src="{% static 'vendor/leaflet/1.9.4/leaflet.js' %}" defer></script>
+  <script src="{% static 'weather/js/map.js' %}" defer></script>
+{% endblock %}

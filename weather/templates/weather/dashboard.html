@@ -11,16 +11,7 @@
       {% include "weather/includes/favorite_control.html" %}
     </div>
 
-    {# FR-3 AC-1/5: switching units reloads this same location, redrawing values and charts. #}
-    <form class="unit-toggle" method="post" action="{% url 'toggle_unit' %}" data-loading>
-      {% csrf_token %}
-      <input type="hidden" name="next" value="{{ request.get_full_path }}">
-      <fieldset>
-        <legend class="visually-hidden">Temperature unit</legend>
-        <button type="submit" name="temperature_unit" value="imperial" aria-pressed="{% if unit == 'imperial' %}true{% else %}false{% endif %}">°F<span class="visually-hidden"> Fahrenheit</span></button>
-        <button type="submit" name="temperature_unit" value="metric" aria-pressed="{% if unit == 'metric' %}true{% else %}false{% endif %}">°C<span class="visually-hidden"> Celsius</span></button>
-      </fieldset>
-    </form>
+    {% include "weather/includes/unit_toggle.html" %}
   </div>
 
   <section class="current" aria-labelledby="current-heading">
@@ -141,9 +132,22 @@
       {{ chart_data|json_script:"forecast-chart-data" }}
     {% endif %}
   </section>
+
+  {# FR-12: shown even when weather failed (NFR-FT-3). #}
+  <section class="map-section" aria-labelledby="map-heading">
+    <h2 id="map-heading">Weather map</h2>
+    {% include "weather/includes/map_panel.html" with places_level=3 %}
+    <p><a href="{{ map_url }}">Open the full map</a></p>
+  </section>
+{% endblock %}
+
+{% block extra_head %}
+  <link rel="stylesheet" href="{% static 'vendor/leaflet/1.9.4/leaflet.css' %}">
 {% endblock %}
 
 {% block scripts %}
+  <script src="{% static 'vendor/leaflet/1.9.4/leaflet.js' %}" defer></script>
+  <script src="{% static 'weather/js/map.js' %}" defer></script>
   {% if chart_data %}
     <script src="{% static 'vendor/chartjs/4.4.7/chart.umd.js' %}" defer></script>
     <script src="{% static 'weather/js/charts.js' %}" defer></script>

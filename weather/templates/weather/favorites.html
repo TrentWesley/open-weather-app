@@ -7,7 +7,7 @@
   <h1>Your favorites</h1>
 
   {% if favorites %}
-    <p>{{ favorites|length }} of {{ max_favorites }} saved.</p>
+    <p>{{ favorites|length }} of {{ max_favorites }} saved. <a href="{% url 'map' %}">Show your favorites on a map</a></p>
     <ul class="favorites">
       {% for item in favorites %}
         {% with favorite=item.favorite weather=item.weather %}

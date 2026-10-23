@@ -1,0 +1,60 @@
+{# FR-12 map, shared by the map page and the dashboard. map.js builds the Leaflet map from #}
+{# the map-config JSON and reveals the hidden parts; without JavaScript (or Leaflet) the text #}
+{# alternative below still lists every place. #}
+{% with heading_level=places_level|default:2 %}
+<div class="map-panel">
+  <p class="notice map-fallback" data-map-fallback>The interactive map needs JavaScript. The places it would show are listed below.</p>
+
+  <div class="map-controls" data-map-controls hidden>
+    <fieldset class="map-layers">
+      <legend>Map layer</legend>
+      {% for item in map.legends %}
+        <span class="map-layer-option">
+          <input type="radio" name="map-layer" id="map-layer-{{ item.layer.value }}" value="{{ item.layer.value }}"{% if item.default %} checked{% endif %}>
+          <label for="map-layer-{{ item.layer.value }}">{{ item.layer.label }}</label>
+        </span>
+      {% endfor %}
+    </fieldset>
+    {# FR-12 AC-4: every colour stop has a text label, so the legend doesn't rely on colour alone. #}
+    {% for item in map.legends %}
+      <div class="map-legend" data-legend="{{ item.layer.value }}"{% if not item.default %} hidden{% endif %}>
+        <p class="map-legend-title">{{ item.layer.label }}</p>
+        <ul>
+          {% for label, color in item.stops %}
+            <li><span class="map-swatch-frame" aria-hidden="true"><span class="map-swatch" style="background: {{ color }}"></span></span>{{ label }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+    {% endfor %}
+  </div>
+
+  <p class="map-loading" data-map-loading hidden><span class="spinner" aria-hidden="true"></span> Loading map…</p>
+  <p class="map-status" role="status" data-map-status></p>
+
+  <div id="weather-map" class="map" data-map role="region" tabindex="0"
+       aria-label="Interactive weather map{% if map.selected %} centered on {{ map.selected.name }}{% endif %}"
+       aria-describedby="map-keyboard-help map-places"
+       hidden></div>
+  <p id="map-keyboard-help" class="map-help" hidden>With the map focused, use the arrow keys to pan and the plus and minus keys to zoom. Press Tab to reach the markers and Enter to open one.</p>
+
+  {# NFR-AC-8: text alternative listing the selected location and favorites. #}
+  <div id="map-places" class="map-places">
+    <h{{ heading_level }}>Places on this map</h{{ heading_level }}>
+    {% if map.selected %}
+      <p>Centered on <a href="{{ map.selected.url }}">{{ map.selected.name }}</a> ({{ map.selected.lat|floatformat:2 }}, {{ map.selected.lon|floatformat:2 }}): {{ map.selected.weather|default:"Current weather unavailable" }}.</p>
+    {% elif not map.favorites %}
+      <p>No location selected. <a href="{% url 'search' %}">Search for a location</a> to center the map on it.</p>
+    {% endif %}
+    {% if map.favorites %}
+      <p>Your favorites on this map:</p>
+      <ul>
+        {% for favorite in map.favorites %}
+          <li><a href="{{ favorite.url }}">{{ favorite.name }}</a>: {{ favorite.weather|default:"Current weather unavailable" }}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  </div>
+
+  {{ map.config|json_script:"map-config" }}
+</div>
+{% endwith %}

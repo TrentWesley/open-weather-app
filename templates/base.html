@@ -25,6 +25,7 @@
         <p class="geolocate-status" role="status" data-geolocate-status></p>
       </div>
       <ul class="nav-account">
+        <li><a href="{% url 'map' %}">Map</a></li>
         {% if user.is_authenticated %}
           <li>Signed in as <strong>{{ user.username }}</strong></li>
           <li><a href="{% url 'favorites' %}">Favorites</a></li>
