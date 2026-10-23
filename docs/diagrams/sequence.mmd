@@ -12,6 +12,7 @@ sequenceDiagram
     participant Client as OpenWeatherClient
     participant DB as SQLite
     participant OWM as OpenWeather API
+    participant OSM as OpenStreetMap tiles
 
     %% ---------- Search (FR-4 / FR-5) ----------
     User->>Browser: Enter "Springfield" and submit
@@ -78,17 +79,29 @@ sequenceDiagram
         end
     end
     Weather-->>View: Forecast
-    View-->>Browser: Dashboard HTML + chart data (JSON)
+    opt user is authenticated (favorite markers)
+        View->>DB: SELECT FavoriteLocation WHERE user (one query)
+        View->>Cache: cached_current() per favorite (no API call)
+    end
+    View-->>Browser: Dashboard HTML + chart data + map config (JSON)
     Browser->>Browser: Draw Chart.js charts and Leaflet map
 
     %% ---------- Map tiles (FR-12) ----------
-    loop each visible map tile
+    Browser->>OSM: GET base map tiles (no key)
+    loop each visible overlay tile
         Browser->>View: GET /weather/tiles/{layer}/{z}/{x}/{y}/
+        View->>View: Validate layer and z/x/y (else 404)
         View->>Client: map_tile(layer, z, x, y)
         Client->>OWM: GET tile (API key added server-side)
-        OWM-->>Client: PNG tile
-        Client-->>View: tile bytes
-        View-->>Browser: PNG tile
+        alt success
+            OWM-->>Client: PNG tile
+            Client-->>View: tile bytes
+            View-->>Browser: PNG tile (browser cache 10 min)
+        else OpenWeather error
+            Client-->>View: OpenWeatherError
+            View-->>Browser: 503 no-store
+            Browser->>Browser: "Layer unavailable" notice, base map still usable
+        end
     end
 
     %% ---------- Bookmark (FR-10, FR-11) ----------

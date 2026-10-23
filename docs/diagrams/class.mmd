@@ -112,6 +112,7 @@ classDiagram
         class WeatherService {
             +current(location, unit) CurrentWeather
             +current_many(locations, unit) list~CurrentWeather|None~
+            +cached_current(location, unit) CurrentWeather|None
             +forecast(location, unit) Forecast
         }
         class OpenWeatherClient {

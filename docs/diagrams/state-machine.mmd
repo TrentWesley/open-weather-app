@@ -45,7 +45,7 @@ stateDiagram-v2
 
     state DisplayingWeather {
         [*] --> Rendered
-        Rendered --> Rendered : unit changed / redraw values and charts
+        Rendered --> Rendered : unit changed / redraw values, charts and map, or map layer switched / new legend, "layer unavailable" if tiles fail
         Rendered --> Saving : click "Save to favorites" [logged in]
         Saving --> Rendered : saved / duplicate / limit reached / error (message announced)
         Rendered --> Saving : click "Remove from favorites" [saved]
