@@ -1,9 +1,12 @@
 """FR-12: what the Leaflet map shows, as JSON-safe data for json_script.
 
 The map page and the dashboard panel share this. Tiles always come from our own
-proxy (AC-6); the base map is OpenStreetMap, which needs no key.
+proxy (AC-6); the base map comes from settings (OpenStreetMap by default) and
+needs no key.
 """
 from dataclasses import asdict, dataclass
+
+from django.conf import settings
 
 from accounts.models import TemperatureUnit
 from weather import formatting
@@ -13,14 +16,13 @@ from weather.services.domain import CurrentWeather, Location, MapLayer
 from weather.services.weather import WeatherService
 from weather.templatetags.weather_format import place_name
 
-BASE_MAP = {
-    "url": "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-    "attribution": (
-        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> '
-        'contributors · Weather layers &copy; <a href="https://openweathermap.org/">OpenWeather</a>'
-    ),
-    "maxZoom": 18,
-}
+OPENWEATHER_ATTRIBUTION = (
+    'Weather layers &copy; <a href="https://openweathermap.org/">OpenWeather</a>'
+)
+# Tile servers such as OpenStreetMap's block requests without a Referer, and the
+# site-wide Referrer-Policy (same-origin) sends none cross-origin. The base layer
+# alone sends the site's origin: never the page path, which contains coordinates.
+BASE_MAP_REFERRER_POLICY = "strict-origin-when-cross-origin"
 LOCATION_ZOOM = 8
 DEFAULT_LAYER = MapLayer.TEMPERATURE
 
@@ -99,6 +101,16 @@ def favorite_markers(
     ]
 
 
+def base_map() -> dict:
+    """The base layer from settings, so the provider can change without a code change."""
+    return {
+        "url": settings.MAP_BASE_TILE_URL,
+        "attribution": f"{settings.MAP_BASE_ATTRIBUTION} · {OPENWEATHER_ATTRIBUTION}",
+        "maxZoom": settings.MAP_BASE_MAX_ZOOM,
+        "referrerPolicy": BASE_MAP_REFERRER_POLICY,
+    }
+
+
 def map_context(
     selected: MapMarker | None, favorites: list[MapMarker], unit: TemperatureUnit | str
 ) -> dict:
@@ -107,7 +119,7 @@ def map_context(
     config = {
         "center": [selected.lat, selected.lon] if selected else None,
         "zoom": LOCATION_ZOOM,
-        "base": BASE_MAP,
+        "base": base_map(),
         "tileUrl": tile_url_template(),
         "defaultLayer": DEFAULT_LAYER.value,
         "markers": [asdict(marker) for marker in markers],

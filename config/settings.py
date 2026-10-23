@@ -166,6 +166,21 @@ OPENWEATHER_RETRY_BACKOFF = 0.5  # seconds to wait before the retry
 OPENWEATHER_ENABLE_ONECALL = env_bool("OPENWEATHER_ENABLE_ONECALL", default=False)
 
 
+# Base map for the weather map (FR-12). The browser loads these tiles directly; they
+# need no key. The default is OpenStreetMap's tile server, whose usage policy
+# (https://operations.osmfoundation.org/policies/tiles/) requires a Referer, the
+# attribution below, and light, interactive use only. Set these to switch provider.
+
+MAP_BASE_TILE_URL = os.environ.get(
+    "MAP_BASE_TILE_URL", "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+)
+MAP_BASE_ATTRIBUTION = os.environ.get(
+    "MAP_BASE_ATTRIBUTION",
+    '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+)
+MAP_BASE_MAX_ZOOM = int(os.environ.get("MAP_BASE_MAX_ZOOM", "18"))
+
+
 # Logging (NFR-REL-2): log endpoints and status codes, never API keys.
 # https://docs.djangoproject.com/en/6.1/topics/logging/
 

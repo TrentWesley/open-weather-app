@@ -207,9 +207,12 @@
       map.panBy = (offset, options) => panBy(offset, { ...options, animate: false });
     }
 
+    // The tile server needs a Referer (OpenStreetMap blocks tiles without one), but the
+    // page's Referrer-Policy sends none cross-origin; this layer sends the origin only.
     const base = L.tileLayer(config.base.url, {
       maxZoom: config.base.maxZoom,
       attribution: config.base.attribution,
+      referrerPolicy: config.base.referrerPolicy,
     });
     let baseReported = false;
     base.on("load", finishLoading);

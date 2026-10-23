@@ -369,3 +369,47 @@ class MapScriptContractTests(MapTestCase):
         reveal = self.source.index("container.hidden = false")
         self.assertLess(leaflet_check, reveal)
         self.assertLess(reveal, self.source.index("L.map(container"))
+
+
+class BaseMapPolicyTests(MapTestCase):
+    """OpenStreetMap tile usage policy (operations.osmfoundation.org/policies/tiles/).
+
+    Tiles requested without a Referer get an "Access blocked" image, and the site's
+    Referrer-Policy (same-origin) strips it from cross-origin requests.
+    """
+
+    def test_base_tiles_send_the_sites_origin_as_referer(self):
+        base = map_config(self.get_map())["base"]
+        self.assertEqual(base["referrerPolicy"], "strict-origin-when-cross-origin")
+
+    def test_site_wide_referrer_policy_stays_same_origin(self):
+        # Only the base-map layer opts in, so other links never get the page path.
+        self.assertEqual(self.get_map()["Referrer-Policy"], "same-origin")
+
+    def test_default_base_map_follows_the_policy(self):
+        base = map_config(self.get_map())["base"]
+        self.assertEqual(base["url"], "https://tile.openstreetmap.org/{z}/{x}/{y}.png")
+        self.assertIn(
+            '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            base["attribution"],
+        )
+        self.assertLessEqual(base["maxZoom"], 19)
+
+    @override_settings(
+        MAP_BASE_TILE_URL="https://tiles.example.org/{z}/{x}/{y}.png",
+        MAP_BASE_ATTRIBUTION="&copy; Example Maps",
+        MAP_BASE_MAX_ZOOM=16,
+    )
+    def test_base_map_provider_is_configurable_without_code_changes(self):
+        base = map_config(self.get_map())["base"]
+        self.assertEqual(base["url"], "https://tiles.example.org/{z}/{x}/{y}.png")
+        self.assertTrue(base["attribution"].startswith("&copy; Example Maps"))
+        self.assertIn("OpenWeather", base["attribution"])
+        self.assertEqual(base["maxZoom"], 16)
+
+    def test_map_script_passes_the_referrer_policy_to_the_base_layer(self):
+        from django.contrib.staticfiles import finders
+
+        with open(finders.find("weather/js/map.js"), encoding="utf-8") as handle:
+            source = handle.read()
+        self.assertIn("referrerPolicy: config.base.referrerPolicy", source)
