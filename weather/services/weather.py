@@ -49,6 +49,14 @@ class WeatherService:
         self._cache.set(key, weather, self._cache.CURRENT_TTL)
         return weather
 
+    def cached_current(
+        self, location: Location, unit: TemperatureUnit | str
+    ) -> CurrentWeather | None:
+        """Current weather from the cache only, never calling OpenWeather (NFR-PERF-3)."""
+        units = TemperatureUnit(unit).value
+        key = WeatherCache.make_key("current", location.latitude, location.longitude, units)
+        return self._cache.get(key)
+
     def current_many(
         self, locations: list[Location], unit: TemperatureUnit | str
     ) -> list[CurrentWeather | None]:

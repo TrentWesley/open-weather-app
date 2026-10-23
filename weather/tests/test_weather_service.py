@@ -364,3 +364,18 @@ class CurrentManyTests(WeatherServiceTestCase):
     def test_empty_list_makes_no_requests(self):
         self.assertEqual(self.service.current_many([], TemperatureUnit.METRIC), [])
         self.client_.current_weather.assert_not_called()
+
+
+class CachedCurrentTests(WeatherServiceTestCase):
+    """FR-12 AC-5 with NFR-PERF-3: dashboard map markers use cached weather only."""
+
+    def test_returns_none_without_calling_openweather_when_not_cached(self):
+        self.assertIsNone(self.service.cached_current(AMARILLO, TemperatureUnit.IMPERIAL))
+        self.client_.current_weather.assert_not_called()
+
+    def test_returns_cached_weather_for_the_same_unit(self):
+        fresh = self.service.current(AMARILLO, TemperatureUnit.IMPERIAL)
+        self.client_.current_weather.reset_mock()
+        self.assertEqual(self.service.cached_current(AMARILLO, TemperatureUnit.IMPERIAL), fresh)
+        self.assertIsNone(self.service.cached_current(AMARILLO, TemperatureUnit.METRIC))
+        self.client_.current_weather.assert_not_called()
