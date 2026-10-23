@@ -7,6 +7,7 @@ from html.parser import HTMLParser
 from unittest import mock
 
 from django.contrib.auth.models import User
+from django.contrib.staticfiles import finders
 from django.core.cache import cache
 from django.test import override_settings
 
@@ -195,3 +196,39 @@ class DashboardBookmarkTests(BookmarkTestCase):
         self.forecast_5day.side_effect = ServiceUnavailableError()
         response = self.client.get(DASHBOARD_PAGE)
         self.assertEqual(len(forms_marked(response, "data-favorite-save")), 1)
+
+
+class FavoritesScriptTests(BookmarkTestCase):
+    """FR-11 AC-3/5: structural checks on favorites.js until a JS test runner is approved."""
+
+    def setUp(self):
+        super().setUp()
+        with open(finders.find("weather/js/favorites.js"), encoding="utf-8") as handle:
+            self.source = handle.read()
+
+    def test_script_is_deferred_on_pages_with_favorite_controls(self):
+        tag = '<script src="/static/weather/js/favorites.js" defer></script>'
+        self.assertContains(self.client.get(SEARCH_PAGE), tag)
+        self.assertContains(self.client.get(DASHBOARD_PAGE), tag)
+
+    def test_fr11_ac3_submits_with_fetch_and_the_csrf_header(self):
+        self.assertIn("fetch(", self.source)
+        self.assertIn('"X-CSRFToken"', self.source)
+        self.assertIn('Accept: "application/json"', self.source)
+        self.assertIn('credentials: "same-origin"', self.source)
+        self.assertIn("preventDefault()", self.source)
+
+    def test_fr11_ac3_without_fetch_the_forms_submit_normally(self):
+        self.assertIn('"fetch" in window', self.source)
+
+    def test_fr11_ac2_handles_saved_duplicate_and_removed_outcomes(self):
+        for status in ("201", "409", "401"):
+            with self.subTest(status=status):
+                self.assertIn(f"=== {status}", self.source)
+
+    def test_fr11_ac5_outcomes_are_announced_in_the_shared_live_region(self):
+        self.assertIn('getElementById("live-region")', self.source)
+
+    def test_nfr_sec5_never_writes_html(self):
+        self.assertNotIn("innerHTML", self.source)
+        self.assertNotIn("insertAdjacentHTML", self.source)

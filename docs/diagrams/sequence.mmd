@@ -95,7 +95,7 @@ sequenceDiagram
     User->>Browser: Click "Save to favorites"
     Browser->>View: POST /favorites/ (fetch, CSRF token)
     alt not authenticated
-        View-->>Browser: Redirect to /accounts/login/?next=...
+        View-->>Browser: 401 with login URL (fetch) or redirect (form POST) to /accounts/login/?next=page
     else authenticated
         View->>DB: Count favorites and check duplicate
         DB-->>View: count, exists
@@ -109,3 +109,13 @@ sequenceDiagram
         end
         Browser->>Browser: Update button and announce via ARIA live region
     end
+
+    User->>Browser: Click "Remove from favorites"
+    Browser->>View: POST /favorites/{id}/delete/ (fetch, CSRF token)
+    View->>DB: DELETE FavoriteLocation WHERE id AND user = request.user
+    alt another user's favorite or missing
+        View-->>Browser: 404
+    else owned
+        View-->>Browser: 200 "Removed ... from favorites."
+    end
+    Browser->>Browser: Show "Save to favorites" and announce via ARIA live region

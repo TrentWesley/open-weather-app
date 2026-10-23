@@ -47,7 +47,8 @@ stateDiagram-v2
         [*] --> Rendered
         Rendered --> Rendered : unit changed / redraw values and charts
         Rendered --> Saving : click "Save to favorites" [logged in]
-        Saving --> Rendered : saved / duplicate / limit reached
+        Saving --> Rendered : saved / duplicate / limit reached / error (message announced)
+        Rendered --> Saving : click "Remove from favorites" [saved]
     }
 
     DisplayingStale --> LoadingWeather : retry
