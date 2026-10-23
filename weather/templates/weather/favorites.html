@@ -18,6 +18,11 @@
             {% else %}
               <p class="favorite-weather">Current weather unavailable</p>
             {% endif %}
+            <form method="post" action="{% url 'favorite_delete' favorite.pk %}">
+              {% csrf_token %}
+              <input type="hidden" name="next" value="{% url 'favorites' %}">
+              <button type="submit" class="button-link">Remove<span class="visually-hidden"> {{ favorite }}</span></button>
+            </form>
           </li>
         {% endwith %}
       {% endfor %}

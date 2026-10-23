@@ -3,12 +3,13 @@
 OpenWeather calls are mocked; favorites are created through FavoriteLocation.add.
 """
 from unittest import mock
+from urllib.parse import parse_qs, urlsplit
 
 from django.contrib.auth.models import User
 from django.contrib.messages import get_messages
 from django.core.cache import cache
 from django.db import connection
-from django.test import override_settings
+from django.test import Client, override_settings
 from django.test.utils import CaptureQueriesContext
 
 from accounts.models import TemperatureUnit
@@ -122,6 +123,15 @@ class FavoritesPageTests(FavoritesTestCase):
         response = self.client.get(FAVORITES_URL)
         self.assertContains(response, "2 of 20 saved")
 
+    def test_fr10_ac4_each_favorite_has_a_post_remove_button(self):
+        favorite = FavoriteLocation.add(self.alice, AMARILLO)
+        response = self.client.get(FAVORITES_URL)
+        self.assertContains(
+            response, f'<form method="post" action="/favorites/{favorite.pk}/delete/"'
+        )
+        self.assertContains(response, 'name="csrfmiddlewaretoken"')
+        self.assertContains(response, "Remove<span class=\"visually-hidden\"> Amarillo, Texas, US")
+
     def test_fr10_ac7_empty_state_links_to_search(self):
         response = self.client.get(FAVORITES_URL)
         self.assertContains(response, "You haven't saved any locations yet.")
@@ -148,3 +158,221 @@ class FavoritesPageTests(FavoritesTestCase):
         FavoriteLocation.add(self.alice, AMARILLO)
         response = self.client.get(FAVORITES_URL)
         self.assertNotContains(response, API_KEY)
+
+
+DASHBOARD_PAGE = "/weather/?lat=35.2220&lon=-101.8313"
+JSON = {"HTTP_ACCEPT": "application/json"}
+
+
+def save_data(location=AMARILLO, next_url=DASHBOARD_PAGE, **overrides):
+    data = {
+        "name": location.name,
+        "state": location.state,
+        "country": location.country,
+        "lat": str(location.latitude),
+        "lon": str(location.longitude),
+        "next": next_url,
+    }
+    data.update(overrides)
+    return data
+
+
+class AddFavoriteTests(FavoritesTestCase):
+    def saved(self, user=None):
+        return list(FavoriteLocation.objects.filter(user=user or self.alice))
+
+    def test_fr11_ac3_form_post_saves_and_returns_to_the_page(self):
+        response = self.client.post(FAVORITES_URL, save_data())
+        self.assertRedirects(response, DASHBOARD_PAGE, fetch_redirect_response=False)
+        self.assertEqual([str(f) for f in self.saved()], ["Amarillo, Texas, US"])
+        self.assertIn("Saved Amarillo, Texas, US to favorites.", message_texts(response))
+
+    def test_fr11_ac3_fetch_post_returns_201_json_with_the_remove_url(self):
+        response = self.client.post(FAVORITES_URL, save_data(), **JSON)
+        self.assertEqual(response.status_code, 201)
+        favorite = self.saved()[0]
+        self.assertEqual(
+            response.json(),
+            {
+                "message": "Saved Amarillo, Texas, US to favorites.",
+                "delete_url": f"/favorites/{favorite.pk}/delete/",
+            },
+        )
+        # No flash message is queued for the next full page load.
+        self.assertEqual(message_texts(response), [])
+
+    def test_fr10_ac5_coordinates_are_rounded_before_saving(self):
+        self.client.post(FAVORITES_URL, save_data(lat="35.22199", lon="-101.83129"), **JSON)
+        favorite = self.saved()[0]
+        self.assertEqual(
+            (str(favorite.latitude), str(favorite.longitude)), ("35.2220", "-101.8313")
+        )
+
+    def test_fr10_ac5_duplicate_returns_409_already_in_favorites(self):
+        favorite = FavoriteLocation.add(self.alice, AMARILLO)
+        response = self.client.post(FAVORITES_URL, save_data(lat="35.22201"), **JSON)
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(
+            response.json(),
+            {"message": "Already in favorites", "delete_url": f"/favorites/{favorite.pk}/delete/"},
+        )
+        self.assertEqual(len(self.saved()), 1)
+
+    def test_fr10_ac5_duplicate_form_post_shows_already_in_favorites(self):
+        FavoriteLocation.add(self.alice, AMARILLO)
+        response = self.client.post(FAVORITES_URL, save_data())
+        self.assertRedirects(response, DASHBOARD_PAGE, fetch_redirect_response=False)
+        self.assertEqual(message_texts(response), ["Already in favorites"])
+
+    def test_fr10_ac6_twenty_first_favorite_returns_400_with_a_limit_message(self):
+        for index in range(20):
+            FavoriteLocation.add(self.alice, place(index))
+        response = self.client.post(FAVORITES_URL, save_data(), **JSON)
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.json()["message"],
+            "Favorites limit reached. You can save up to 20 locations; "
+            "remove one to add another.",
+        )
+        self.assertEqual(len(self.saved()), 20)
+
+    def test_fr10_ac6_limit_form_post_shows_the_limit_message(self):
+        for index in range(20):
+            FavoriteLocation.add(self.alice, place(index))
+        response = self.client.post(FAVORITES_URL, save_data())
+        self.assertRedirects(response, DASHBOARD_PAGE, fetch_redirect_response=False)
+        self.assertIn("Favorites limit reached", message_texts(response)[0])
+
+    def test_fr11_ac4_anonymous_form_post_goes_to_login_then_back_to_the_page(self):
+        self.client.logout()
+        response = self.client.post(FAVORITES_URL, save_data())
+        self.assertRedirects(
+            response,
+            "/accounts/login/?next=/weather/%3Flat%3D35.2220%26lon%3D-101.8313",
+            fetch_redirect_response=False,
+        )
+        self.assertFalse(FavoriteLocation.objects.exists())
+
+    def test_fr11_ac4_anonymous_fetch_gets_401_with_the_login_url(self):
+        self.client.logout()
+        response = self.client.post(FAVORITES_URL, save_data(), **JSON)
+        self.assertEqual(response.status_code, 401)
+        login = urlsplit(response.json()["login_url"])
+        self.assertEqual(login.path, "/accounts/login/")
+        self.assertEqual(parse_qs(login.query), {"next": [DASHBOARD_PAGE]})
+        self.assertFalse(FavoriteLocation.objects.exists())
+
+    def test_nfr_sec8_unsafe_next_falls_back_to_the_favorites_page(self):
+        response = self.client.post(FAVORITES_URL, save_data(next_url="https://evil.example/"))
+        self.assertRedirects(response, FAVORITES_URL, fetch_redirect_response=False)
+        self.client.logout()
+        response = self.client.post(FAVORITES_URL, save_data(next_url="//evil.example/"))
+        self.assertRedirects(response, "/accounts/login/?next=/", fetch_redirect_response=False)
+
+    def test_nfr_sec5_invalid_locations_are_rejected(self):
+        cases = (
+            {"lat": "91"},
+            {"lon": "-180.1"},
+            {"lat": "nan"},
+            {"lat": ""},
+            {"name": ""},
+            {"name": "x" * 101},
+            {"state": "x" * 101},
+            {"country": "x" * 101},
+        )
+        for overrides in cases:
+            with self.subTest(overrides=overrides):
+                response = self.client.post(FAVORITES_URL, save_data(**overrides), **JSON)
+                self.assertEqual(response.status_code, 400)
+                self.assertEqual(
+                    response.json(), {"message": "That location couldn't be saved."}
+                )
+        response = self.client.post(FAVORITES_URL, save_data(lat="91"))
+        self.assertRedirects(response, DASHBOARD_PAGE, fetch_redirect_response=False)
+        self.assertEqual(message_texts(response), ["That location couldn't be saved."])
+        self.assertFalse(FavoriteLocation.objects.exists())
+
+    def test_nfr_sec4_favorite_is_always_saved_for_the_requesting_user(self):
+        self.client.post(FAVORITES_URL, save_data(user=str(self.bob.pk)), **JSON)
+        self.assertEqual(len(self.saved()), 1)
+        self.assertEqual(self.saved(self.bob), [])
+
+    def test_nfr_sec3_post_without_csrf_token_is_rejected(self):
+        client = Client(enforce_csrf_checks=True)
+        client.force_login(self.alice)
+        response = client.post(FAVORITES_URL, save_data(), **JSON)
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(FavoriteLocation.objects.exists())
+
+    def test_other_methods_are_not_allowed(self):
+        self.assertEqual(self.client.put(FAVORITES_URL).status_code, 405)
+        self.assertEqual(self.client.delete(FAVORITES_URL).status_code, 405)
+
+    def test_saving_makes_no_openweather_calls(self):
+        self.client.post(FAVORITES_URL, save_data(), **JSON)
+        self.current.assert_not_called()
+        self.reverse.assert_not_called()
+
+
+class RemoveFavoriteTests(FavoritesTestCase):
+    def setUp(self):
+        super().setUp()
+        self.favorite = FavoriteLocation.add(self.alice, AMARILLO)
+        self.url = f"/favorites/{self.favorite.pk}/delete/"
+
+    def test_fr10_ac4_post_removes_and_confirms(self):
+        response = self.client.post(self.url)
+        self.assertRedirects(response, FAVORITES_URL, fetch_redirect_response=False)
+        self.assertFalse(FavoriteLocation.objects.exists())
+        self.assertEqual(message_texts(response), ["Removed Amarillo, Texas, US from favorites."])
+
+    def test_fr11_ac2_form_post_returns_to_the_page_it_came_from(self):
+        response = self.client.post(self.url, {"next": DASHBOARD_PAGE})
+        self.assertRedirects(response, DASHBOARD_PAGE, fetch_redirect_response=False)
+
+    def test_nfr_sec8_unsafe_next_falls_back_to_the_favorites_page(self):
+        response = self.client.post(self.url, {"next": "https://evil.example/"})
+        self.assertRedirects(response, FAVORITES_URL, fetch_redirect_response=False)
+
+    def test_fr11_ac3_fetch_remove_returns_json(self):
+        response = self.client.post(self.url, **JSON)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json(), {"message": "Removed Amarillo, Texas, US from favorites."}
+        )
+        self.assertEqual(message_texts(response), [])
+        self.assertFalse(FavoriteLocation.objects.exists())
+
+    def test_nfr_sec4_another_users_favorite_is_404_and_untouched(self):
+        self.client.force_login(self.bob)
+        self.assertEqual(self.client.post(self.url).status_code, 404)
+        self.assertEqual(self.client.post(self.url, **JSON).status_code, 404)
+        self.assertTrue(FavoriteLocation.objects.filter(pk=self.favorite.pk).exists())
+
+    def test_missing_favorite_is_404(self):
+        response = self.client.post(f"/favorites/{self.favorite.pk + 100}/delete/")
+        self.assertEqual(response.status_code, 404)
+
+    def test_nfr_sec3_remove_is_post_only(self):
+        self.assertEqual(self.client.get(self.url).status_code, 405)
+        self.assertTrue(FavoriteLocation.objects.exists())
+
+    def test_nfr_sec3_post_without_csrf_token_is_rejected(self):
+        client = Client(enforce_csrf_checks=True)
+        client.force_login(self.alice)
+        self.assertEqual(client.post(self.url).status_code, 403)
+        self.assertTrue(FavoriteLocation.objects.exists())
+
+    def test_fr11_ac4_anonymous_user_goes_to_login_then_back_to_the_page(self):
+        self.client.logout()
+        response = self.client.post(self.url, {"next": DASHBOARD_PAGE})
+        login = urlsplit(response["Location"])
+        self.assertEqual((response.status_code, login.path), (302, "/accounts/login/"))
+        self.assertEqual(parse_qs(login.query), {"next": [DASHBOARD_PAGE]})
+        self.assertEqual(self.client.post(self.url, **JSON).status_code, 401)
+        self.assertTrue(FavoriteLocation.objects.exists())
+
+    def test_removing_from_the_favorites_page_shows_the_updated_list(self):
+        response = self.client.post(self.url, {"next": FAVORITES_URL}, follow=True)
+        self.assertContains(response, "Removed Amarillo, Texas, US from favorites.")
+        self.assertContains(response, "You haven't saved any locations yet.")

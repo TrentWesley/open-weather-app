@@ -8,4 +8,5 @@ urlpatterns = [
     path("weather/", views.dashboard, name="dashboard"),
     path("weather/reverse/", views.reverse_geocode, name="reverse_geocode"),
     path("favorites/", views.favorites, name="favorites"),
+    path("favorites/<int:pk>/delete/", views.delete_favorite, name="favorite_delete"),
 ]

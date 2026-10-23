@@ -1,6 +1,7 @@
 from django import forms
 
 from accounts.forms import AccessibleErrorsMixin
+from weather.services.domain import Location
 from weather.services.search import MAX_QUERY_LENGTH
 
 
@@ -25,3 +26,15 @@ class CoordinatesForm(forms.Form):
 
     lat = forms.FloatField(min_value=-90, max_value=90)
     lon = forms.FloatField(min_value=-180, max_value=180)
+
+
+class FavoriteForm(CoordinatesForm):
+    """FR-11: the place a "Save to favorites" button submits (NFR-SEC-5)."""
+
+    name = forms.CharField(max_length=100)
+    state = forms.CharField(max_length=100, required=False)
+    country = forms.CharField(max_length=100, required=False)
+
+    def location(self) -> Location:
+        data = self.cleaned_data
+        return Location(data["name"], data["state"], data["country"], data["lat"], data["lon"])

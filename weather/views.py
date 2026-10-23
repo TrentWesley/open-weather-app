@@ -1,14 +1,18 @@
 from urllib.parse import urlencode
 
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.http import HttpRequest, HttpResponse
-from django.shortcuts import redirect, render
+from django.contrib.auth.views import redirect_to_login
+from django.http import HttpRequest, HttpResponse, JsonResponse
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.db import transaction
 from django.utils import timezone
-from django.views.decorators.http import require_GET
+from django.utils.http import url_has_allowed_host_and_scheme
+from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from accounts.preferences import get_unit
-from weather.forms import CoordinatesForm, SearchForm
+from weather.forms import CoordinatesForm, FavoriteForm, SearchForm
 from weather.models import FavoriteLocation
 from weather.services.domain import Location
 from weather.services.exceptions import (
@@ -19,6 +23,12 @@ from weather.services.exceptions import (
 from weather.services.search import LocationSearchService
 from weather.services.weather import WeatherService
 
+ALREADY_SAVED = "Already in favorites"
+FAVORITE_INVALID = "That location couldn't be saved."
+FAVORITES_LIMIT_REACHED = (
+    f"Favorites limit reached. You can save up to {FavoriteLocation.MAX_PER_USER} locations; "
+    "remove one to add another."
+)
 FORECAST_UNAVAILABLE = "The forecast isn't available right now. "
 LOCATION_LOOKUP_FAILED = "We couldn't look up your location. "
 NO_LOCATIONS = ("No locations found.", "Please check the spelling or try a postal code.")
@@ -121,9 +131,16 @@ def reverse_geocode(request: HttpRequest) -> HttpResponse:
     return redirect(dashboard_url(location))
 
 
-@login_required
-@require_GET
+@require_http_methods(["GET", "POST"])
 def favorites(request: HttpRequest) -> HttpResponse:
+    """GET lists the user's favorites (FR-10); POST adds one (FR-11)."""
+    if request.method == "POST":
+        return add_favorite(request)
+    return favorites_list(request)
+
+
+@login_required
+def favorites_list(request: HttpRequest) -> HttpResponse:
     """FR-10 AC-2/3/7: the user's own favorites, each with its current weather.
 
     One query loads the favorites (NFR-PERF-6); weather comes from the cache
@@ -142,6 +159,107 @@ def favorites(request: HttpRequest) -> HttpResponse:
         "max_favorites": FavoriteLocation.MAX_PER_USER,
     }
     return render(request, "weather/favorites.html", context)
+
+
+def add_favorite(request: HttpRequest) -> HttpResponse:
+    """FR-11 AC-3/4: save a place, answering fetch with JSON and forms with a redirect.
+
+    fetch gets 201, 409 "Already in favorites" or 400 (sequence.mmd); a form
+    POST returns to the page it came from with a message. Anonymous users are
+    sent to log in and then back to that page.
+    """
+    as_json = wants_json(request)
+    if not request.user.is_authenticated:
+        return login_first(request, as_json)
+
+    next_url = safe_next(request, reverse("favorites"))
+    form = FavoriteForm(request.POST)
+    if not form.is_valid():
+        return favorite_outcome(request, as_json, next_url, 400, messages.ERROR, FAVORITE_INVALID)
+    location = form.location()
+    try:
+        favorite = FavoriteLocation.add(request.user, location)
+    except FavoriteLocation.AlreadySaved:
+        favorite = FavoriteLocation.objects.get(
+            user=request.user,
+            latitude=FavoriteLocation.round_coordinate(location.latitude),
+            longitude=FavoriteLocation.round_coordinate(location.longitude),
+        )
+        return favorite_outcome(
+            request, as_json, next_url, 409, messages.INFO, ALREADY_SAVED, favorite
+        )
+    except FavoriteLocation.LimitReached:
+        return favorite_outcome(
+            request, as_json, next_url, 400, messages.ERROR, FAVORITES_LIMIT_REACHED
+        )
+    saved = f"Saved {favorite} to favorites."
+    return favorite_outcome(
+        request, as_json, next_url, 201, messages.SUCCESS, saved, favorite
+    )
+
+
+@require_POST
+def delete_favorite(request: HttpRequest, pk: int) -> HttpResponse:
+    """FR-10 AC-4: remove one of the user's own favorites; anyone else's is a 404."""
+    as_json = wants_json(request)
+    if not request.user.is_authenticated:
+        return login_first(request, as_json)
+    favorite = get_object_or_404(FavoriteLocation, pk=pk, user=request.user)
+    name = str(favorite)
+    with transaction.atomic():
+        favorite.delete()
+    return favorite_outcome(
+        request,
+        as_json,
+        safe_next(request, reverse("favorites")),
+        200,
+        messages.SUCCESS,
+        f"Removed {name} from favorites.",
+    )
+
+
+def login_first(request: HttpRequest, as_json: bool) -> HttpResponse:
+    """FR-11 AC-4: send an anonymous user to log in, then back to the page they were on."""
+    login = redirect_to_login(safe_next(request, reverse("home")))
+    if as_json:
+        return JsonResponse(
+            {"message": "Log in to save favorites.", "login_url": login.url}, status=401
+        )
+    return login
+
+
+def favorite_outcome(
+    request: HttpRequest,
+    as_json: bool,
+    next_url: str,
+    status: int,
+    level: int,
+    message: str,
+    favorite: FavoriteLocation | None = None,
+) -> HttpResponse:
+    """JSON (status, message, remove URL) for fetch; a flash message and redirect otherwise."""
+    if as_json:
+        data = {"message": message}
+        if favorite is not None:
+            data["delete_url"] = reverse("favorite_delete", args=[favorite.pk])
+        return JsonResponse(data, status=status)
+    messages.add_message(request, level, message)
+    return redirect(next_url)
+
+
+def wants_json(request: HttpRequest) -> bool:
+    """True for favorites.js fetch requests, which ask for JSON explicitly."""
+    return request.headers.get("Accept", "").startswith("application/json")
+
+
+def safe_next(request: HttpRequest, default: str) -> str:
+    """The POSTed `next` page if it is on this site (NFR-SEC-8), else `default`."""
+    next_url = request.POST.get("next", "")
+    if url_has_allowed_host_and_scheme(
+        next_url, allowed_hosts={request.get_host()}, require_https=request.is_secure()
+    ):
+        return next_url
+    return default
 
 
 def place_for(lat: float, lon: float) -> Location:
