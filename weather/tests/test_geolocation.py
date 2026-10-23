@@ -184,3 +184,9 @@ class GeolocationScriptContractTests(GeolocationTestCase):
         request_function = self.source.index("function requestLocation(")
         self.assertIn("requestLocation(", self.source[handler:])
         self.assertLess(request_function, self.source.index("getCurrentPosition("))
+
+    def test_fr7_ac2_click_calls_the_browser_geolocation_api(self):
+        request_function = self.source.index("function requestLocation(")
+        call = self.source.index("navigator.geolocation.getCurrentPosition(")
+        self.assertLess(request_function, call)
+        self.assertIn("button.addEventListener(\"click\", () => requestLocation(button, status))", self.source)
