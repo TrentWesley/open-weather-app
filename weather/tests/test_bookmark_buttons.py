@@ -232,3 +232,8 @@ class FavoritesScriptTests(BookmarkTestCase):
     def test_nfr_sec5_never_writes_html(self):
         self.assertNotIn("innerHTML", self.source)
         self.assertNotIn("insertAdjacentHTML", self.source)
+
+    def test_nfr_use4_slow_requests_show_saving_or_removing_after_300_ms(self):
+        self.assertIn("BOOKMARK_SLOW_NOTICE_MS = 300", self.source)
+        self.assertIn('"Saving…"', self.source)
+        self.assertIn('"Removing…"', self.source)

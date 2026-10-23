@@ -5,6 +5,9 @@
 
 const FAILED = "Couldn't update your favorites. Please try again.";
 const ALREADY_REMOVED = "That favorite was already removed.";
+// NFR-USE-4: say what's happening if a request takes longer than 300 ms.
+const BOOKMARK_SLOW_NOTICE_MS = 300;
+const PROGRESS = { save: "Saving…", remove: "Removing…" };
 
 // ---- Pure helpers (no DOM access) ----
 
@@ -72,6 +75,13 @@ async function submitFavorite(form) {
   const token = form.querySelector('input[name="csrfmiddlewaretoken"]').value;
   button.disabled = true;
   button.setAttribute("aria-busy", "true");
+  const slowNotice = setTimeout(() => {
+    const message = control.querySelector("[data-favorite-message]");
+    if (message) {
+      message.textContent = PROGRESS[kind];
+      message.classList.remove("favorite-message-error");
+    }
+  }, BOOKMARK_SLOW_NOTICE_MS);
   try {
     const response = await fetch(form.getAttribute("action"), {
       method: "POST",
@@ -93,6 +103,7 @@ async function submitFavorite(form) {
   } catch (error) {
     showMessage(control, FAILED, true);
   } finally {
+    clearTimeout(slowNotice);
     button.disabled = false;
     button.removeAttribute("aria-busy");
     // Disabling the focused button drops focus to the page; give it back.
