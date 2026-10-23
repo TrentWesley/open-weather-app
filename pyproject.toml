@@ -1,7 +1,7 @@
 [project]
 name = "open-weather-app"
 version = "0.1.0"
-description = "Add your description here"
+description = "Django weather app: OpenWeather search, dashboard, forecast charts, favorites and map"
 readme = "README.md"
 authors = [
     { name = "Trent Wesley", email = "tswesley1@buffs.wtamu.edu" }

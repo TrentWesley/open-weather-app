@@ -2,8 +2,8 @@
 
 **Project:** Coding Project 1 — Open Weather Application
 **Author:** Trent Wesley
-**Status:** Draft (requirements only; no application features implemented yet)
-**Last updated:** 2026-10-20
+**Status:** Implemented. All FR-1 to FR-12 delivered; see [docs/requirements-audit.md](docs/requirements-audit.md).
+**Last updated:** 2026-10-23 (status only; requirements unchanged since 2026-10-20)
 
 ---
 
@@ -16,7 +16,7 @@ preferred temperature unit, save favorite locations, and view weather on an
 interactive map.
 
 This document defines **what** the system must do. It does not prescribe detailed
-implementation, and no features described here have been built yet.
+implementation.
 
 ### 1.1 Planned Technology Stack
 
