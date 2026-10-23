@@ -22,7 +22,8 @@ PRINT_SETTINGS = (
     "'DEBUG': s.DEBUG, 'ALLOWED_HOSTS': s.ALLOWED_HOSTS,"
     "'SESSION_COOKIE_SECURE': s.SESSION_COOKIE_SECURE,"
     "'CSRF_COOKIE_SECURE': s.CSRF_COOKIE_SECURE,"
-    "'OPENWEATHER_ENABLE_ONECALL': s.OPENWEATHER_ENABLE_ONECALL}))"
+    "'OPENWEATHER_ENABLE_ONECALL': s.OPENWEATHER_ENABLE_ONECALL,"
+    "'MAIL_BACKEND': s.MAILERS['default']['BACKEND']}))"
 )
 
 
@@ -85,6 +86,13 @@ class EnvironmentSettingsTests(SimpleTestCase):
     def test_secure_cookies_can_be_overridden(self):
         values = load_settings_json(DJANGO_DEBUG="false", DJANGO_SECURE_COOKIES="false")
         self.assertFalse(values["SESSION_COOKIE_SECURE"])
+
+    def test_nfr_sec6_console_email_backend_only_in_local_debug(self):
+        """check --deploy rejects development-only mail backends (mail.E001)."""
+        debug = load_settings_json(DJANGO_DEBUG="true")
+        production = load_settings_json(DJANGO_DEBUG="false")
+        self.assertEqual(debug["MAIL_BACKEND"], "django.core.mail.backends.console.EmailBackend")
+        self.assertEqual(production["MAIL_BACKEND"], "django.core.mail.backends.smtp.EmailBackend")
 
     def test_one_call_disabled_by_default(self):
         values = load_settings_json(OPENWEATHER_ENABLE_ONECALL=None)
